@@ -1,0 +1,310 @@
+{
+  "version": "1.1.0",
+  "description": "DiskAudit known cleanup targets. risk: Safe | Review | Manual. clean.type: DeleteContents | Command | None. Safe = only 7-day-old temp files (see PLAN_REVIEW.md).",
+  "rules": [
+    {
+      "id": "user-temp", "risk": "Safe", "category": "暫存檔",
+      "path": ["%TEMP%", "%SystemDrive%\\Users\\*\\AppData\\Local\\Temp"],
+      "note": "目前使用者暫存資料夾；只清 7 天以上、未被鎖定的檔案。",
+      "action": "Get-ChildItem $env:TEMP -Recurse -Force | Where LastWriteTime -lt (Get-Date).AddDays(-7) | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue",
+      "clean": { "type": "DeleteContents", "olderThanDays": 7 }
+    },
+    {
+      "id": "windows-temp", "risk": "Safe", "category": "暫存檔",
+      "path": "%SystemRoot%\\Temp",
+      "note": "系統暫存資料夾（需系統管理員）；只清 7 天以上的檔案。",
+      "action": "Get-ChildItem $env:SystemRoot\\Temp -Recurse -Force | Where LastWriteTime -lt (Get-Date).AddDays(-7) | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue",
+      "clean": { "type": "DeleteContents", "olderThanDays": 7 }
+    },
+    {
+      "id": "inet-cache", "risk": "Review", "category": "快取",
+      "path": "%LOCALAPPDATA%\\Microsoft\\Windows\\INetCache",
+      "note": "IE/Edge 舊版元件與 Windows 內建網路元件快取，會自動重建。",
+      "action": "Remove-Item \"$env:LOCALAPPDATA\\Microsoft\\Windows\\INetCache\\*\" -Recurse -Force -ErrorAction SilentlyContinue",
+      "clean": { "type": "DeleteContents", "olderThanDays": 7 }
+    },
+    {
+      "id": "thumbcache", "risk": "Review", "category": "快取",
+      "path": "%LOCALAPPDATA%\\Microsoft\\Windows\\Explorer",
+      "note": "檔案總管縮圖快取 thumbcache_*.db，會自動重建（被使用中的檔案會略過）。",
+      "action": "Remove-Item \"$env:LOCALAPPDATA\\Microsoft\\Windows\\Explorer\\thumbcache_*.db\" -Force -ErrorAction SilentlyContinue",
+      "clean": { "type": "DeleteContents", "olderThanDays": 0, "nameRegex": "^thumbcache_.*\\.db$" }
+    },
+    {
+      "id": "wer-programdata", "risk": "Review", "category": "錯誤報告",
+      "path": "%ProgramData%\\Microsoft\\Windows\\WER",
+      "note": "Windows 錯誤報告佇列與封存，只清 14 天以上。",
+      "action": "Get-ChildItem $env:ProgramData\\Microsoft\\Windows\\WER -Recurse -Force | Where LastWriteTime -lt (Get-Date).AddDays(-14) | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue",
+      "clean": { "type": "DeleteContents", "olderThanDays": 14 }
+    },
+    {
+      "id": "wer-user", "risk": "Review", "category": "錯誤報告",
+      "path": "%LOCALAPPDATA%\\Microsoft\\Windows\\WER",
+      "note": "使用者層級錯誤報告，只清 14 天以上。",
+      "action": "Get-ChildItem $env:LOCALAPPDATA\\Microsoft\\Windows\\WER -Recurse -Force | Where LastWriteTime -lt (Get-Date).AddDays(-14) | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue",
+      "clean": { "type": "DeleteContents", "olderThanDays": 14 }
+    },
+    {
+      "id": "cbs-logs", "risk": "Review", "category": "記錄檔",
+      "path": "%SystemRoot%\\Logs\\CBS",
+      "note": "元件式服務舊記錄與 CAB，只清 30 天以上。",
+      "action": "Get-ChildItem $env:SystemRoot\\Logs\\CBS -Include *.log,*.cab -Recurse -Force | Where LastWriteTime -lt (Get-Date).AddDays(-30) | Remove-Item -Force -ErrorAction SilentlyContinue",
+      "clean": { "type": "DeleteContents", "olderThanDays": 30, "nameRegex": "\\.(log|cab)$" }
+    },
+    {
+      "id": "sw-distribution-download", "risk": "Review", "category": "Windows Update",
+      "path": "%SystemRoot%\\SoftwareDistribution\\Download",
+      "note": "Windows Update 已下載的安裝檔快取；清理時會暫停 wuauserv/bits，完成後必定恢復。",
+      "action": "Stop-Service wuauserv,bits; Remove-Item $env:SystemRoot\\SoftwareDistribution\\Download\\* -Recurse -Force; Start-Service bits,wuauserv",
+      "clean": { "type": "DeleteContents", "olderThanDays": 0, "services": ["wuauserv", "bits"] }
+    },
+    {
+      "id": "delivery-optimization", "risk": "Review", "category": "Windows Update",
+      "path": "%SystemRoot%\\ServiceProfiles\\NetworkService\\AppData\\Local\\Microsoft\\Windows\\DeliveryOptimization\\Cache",
+      "note": "傳遞最佳化（P2P 更新）快取，可由系統指令安全清除。",
+      "action": "Delete-DeliveryOptimizationCache -Force",
+      "clean": { "type": "Command", "command": "Delete-DeliveryOptimizationCache -Force" }
+    },
+    {
+      "id": "component-store-cleanup", "risk": "Review", "category": "元件存放區",
+      "path": "%SystemRoot%\\WinSxS",
+      "note": "WinSxS 不可手動刪除；官方做法為 DISM StartComponentCleanup（不加 /ResetBase，仍可解除安裝更新）。大小含硬連結，實際佔用請用 -WinSxS 取得。",
+      "action": "DISM /Online /Cleanup-Image /StartComponentCleanup",
+      "measure": "none",
+      "clean": { "type": "Command", "command": "DISM.exe /Online /Cleanup-Image /StartComponentCleanup" }
+    },
+
+    {
+      "id": "recycle-bin", "risk": "Review", "category": "資源回收筒",
+      "path": "%SystemDrive%\\$Recycle.Bin",
+      "note": "資源回收筒內容為永久刪除，請先自行確認裡面沒有需要還原的檔案。",
+      "action": "Clear-RecycleBin -DriveLetter C -Force",
+      "clean": { "type": "Command", "command": "Clear-RecycleBin -DriveLetter C -Force", "confirmKeyword": "EMPTY RECYCLE BIN" }
+    },
+    {
+      "id": "minidump", "risk": "Review", "category": "當機傾印",
+      "path": "%SystemRoot%\\Minidump",
+      "note": "藍屏小型傾印；若不需要分析當機原因即可清除。",
+      "action": "Remove-Item $env:SystemRoot\\Minidump\\* -Force",
+      "clean": { "type": "DeleteContents", "olderThanDays": 0 }
+    },
+    {
+      "id": "memory-dmp", "risk": "Review", "category": "當機傾印",
+      "path": "%SystemRoot%\\MEMORY.DMP",
+      "note": "完整記憶體傾印，通常數 GB；若不需要分析當機原因即可清除。",
+      "action": "Remove-Item $env:SystemRoot\\MEMORY.DMP -Force",
+      "clean": { "type": "DeleteContents", "olderThanDays": 0 }
+    },
+    {
+      "id": "livekernelreports", "risk": "Review", "category": "當機傾印",
+      "path": "%SystemRoot%\\LiveKernelReports",
+      "note": "即時核心報告 (.dmp)，可清除。",
+      "action": "Remove-Item $env:SystemRoot\\LiveKernelReports\\* -Recurse -Force",
+      "clean": { "type": "DeleteContents", "olderThanDays": 0 }
+    },
+    {
+      "id": "user-crashdumps", "risk": "Review", "category": "當機傾印",
+      "path": "%LOCALAPPDATA%\\CrashDumps",
+      "note": "應用程式當機傾印，可清除。",
+      "action": "Remove-Item $env:LOCALAPPDATA\\CrashDumps\\* -Force",
+      "clean": { "type": "DeleteContents", "olderThanDays": 0 }
+    },
+    {
+      "id": "windows-old", "risk": "Review", "category": "舊版 Windows",
+      "path": "%SystemDrive%\\Windows.old",
+      "note": "升級前的舊系統；刪除後無法回復到舊版。通常 10~30 天後系統會自動清除。",
+      "action": "DISM 或 設定 > 系統 > 儲存空間 > 暫存檔案 > 以前的 Windows 安裝",
+      "clean": { "type": "None", "manualOnly": true }
+    },
+    {
+      "id": "windows-bt", "risk": "Review", "category": "舊版 Windows",
+      "path": "%SystemDrive%\\$WINDOWS.~BT",
+      "note": "Windows 升級暫存；升級完成後可由「磁碟清理」清除。",
+      "action": "cleanmgr /sageset:1  (勾選『Windows 升級記錄檔』『以前的 Windows 安裝』)",
+      "clean": { "type": "None", "manualOnly": true }
+    },
+    {
+      "id": "chrome-cache", "risk": "Review", "category": "瀏覽器快取",
+      "path": "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\*\\Cache",
+      "note": "Chrome 快取；請先關閉 Chrome。會自動重建，但網頁首次載入會變慢。",
+      "action": "關閉 Chrome 後清除，或 chrome://settings/clearBrowserData",
+      "clean": { "type": "DeleteContents", "olderThanDays": 0 }
+    },
+    {
+      "id": "chrome-code-cache", "risk": "Review", "category": "瀏覽器快取",
+      "path": "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\*\\Code Cache",
+      "note": "Chrome JS 編譯快取；請先關閉 Chrome。",
+      "action": "關閉 Chrome 後清除",
+      "clean": { "type": "DeleteContents", "olderThanDays": 0 }
+    },
+    {
+      "id": "edge-cache", "risk": "Review", "category": "瀏覽器快取",
+      "path": "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\*\\Cache",
+      "note": "Edge 快取；請先關閉 Edge。",
+      "action": "關閉 Edge 後清除，或 edge://settings/clearBrowserData",
+      "clean": { "type": "DeleteContents", "olderThanDays": 0 }
+    },
+    {
+      "id": "edge-code-cache", "risk": "Review", "category": "瀏覽器快取",
+      "path": "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\*\\Code Cache",
+      "note": "Edge JS 編譯快取；請先關閉 Edge。",
+      "action": "關閉 Edge 後清除",
+      "clean": { "type": "DeleteContents", "olderThanDays": 0 }
+    },
+    {
+      "id": "firefox-cache", "risk": "Review", "category": "瀏覽器快取",
+      "path": "%LOCALAPPDATA%\\Mozilla\\Firefox\\Profiles\\*\\cache2",
+      "note": "Firefox 快取；請先關閉 Firefox。",
+      "action": "關閉 Firefox 後清除",
+      "clean": { "type": "DeleteContents", "olderThanDays": 0 }
+    },
+    {
+      "id": "vscode-cache", "risk": "Review", "category": "應用程式快取",
+      "path": ["%APPDATA%\\Code\\Cache", "%APPDATA%\\Code\\CachedData", "%APPDATA%\\Code\\CachedExtensionVSIXs", "%APPDATA%\\Code\\Code Cache"],
+      "note": "VS Code 快取，會自動重建；請先關閉 VS Code。",
+      "action": "關閉 VS Code 後清除",
+      "clean": { "type": "DeleteContents", "olderThanDays": 0 }
+    },
+    {
+      "id": "teams-cache", "risk": "Review", "category": "應用程式快取",
+      "path": ["%APPDATA%\\Microsoft\\Teams\\Cache", "%APPDATA%\\Microsoft\\Teams\\Service Worker\\CacheStorage", "%LOCALAPPDATA%\\Packages\\MSTeams_*\\LocalCache"],
+      "note": "Teams 快取；請先關閉 Teams。",
+      "action": "關閉 Teams 後清除",
+      "clean": { "type": "DeleteContents", "olderThanDays": 0 }
+    },
+    {
+      "id": "slack-cache", "risk": "Review", "category": "應用程式快取",
+      "path": ["%APPDATA%\\Slack\\Cache", "%APPDATA%\\Slack\\Service Worker\\CacheStorage"],
+      "note": "Slack 快取；請先關閉 Slack。",
+      "action": "關閉 Slack 後清除",
+      "clean": { "type": "DeleteContents", "olderThanDays": 0 }
+    },
+    {
+      "id": "pip-cache", "risk": "Review", "category": "開發工具快取",
+      "path": "%LOCALAPPDATA%\\pip\\Cache",
+      "note": "pip 下載快取，需要時會重新下載。",
+      "action": "pip cache purge",
+      "clean": { "type": "DeleteContents", "olderThanDays": 0 }
+    },
+    {
+      "id": "npm-cache", "risk": "Review", "category": "開發工具快取",
+      "path": ["%LOCALAPPDATA%\\npm-cache", "%APPDATA%\\npm-cache"],
+      "note": "npm 下載快取。",
+      "action": "npm cache clean --force",
+      "clean": { "type": "DeleteContents", "olderThanDays": 0 }
+    },
+    {
+      "id": "nuget-cache", "risk": "Review", "category": "開發工具快取",
+      "path": ["%LOCALAPPDATA%\\NuGet\\v3-cache", "%USERPROFILE%\\.nuget\\packages"],
+      "note": "NuGet 套件快取；還原專案時會重新下載（離線環境請勿清）。",
+      "action": "dotnet nuget locals all --clear",
+      "clean": { "type": "DeleteContents", "olderThanDays": 0 }
+    },
+    {
+      "id": "gradle-cache", "risk": "Review", "category": "開發工具快取",
+      "path": "%USERPROFILE%\\.gradle\\caches",
+      "note": "Gradle 快取；下次建置會重新下載（離線環境請勿清）。",
+      "action": "Remove-Item $env:USERPROFILE\\.gradle\\caches -Recurse -Force",
+      "clean": { "type": "DeleteContents", "olderThanDays": 0 }
+    },
+    {
+      "id": "maven-repo", "risk": "Review", "category": "開發工具快取",
+      "path": "%USERPROFILE%\\.m2\\repository",
+      "note": "Maven 本機倉庫；下次建置會重新下載（離線環境請勿清）。",
+      "action": "Remove-Item $env:USERPROFILE\\.m2\\repository -Recurse -Force",
+      "clean": { "type": "DeleteContents", "olderThanDays": 0 }
+    },
+    {
+      "id": "cargo-registry", "risk": "Review", "category": "開發工具快取",
+      "path": "%USERPROFILE%\\.cargo\\registry",
+      "note": "Cargo 套件登錄快取。",
+      "action": "cargo cache -a  或手動刪除",
+      "clean": { "type": "DeleteContents", "olderThanDays": 0 }
+    },
+
+    {
+      "id": "hiberfil", "risk": "Manual", "category": "系統保留檔",
+      "path": "%SystemDrive%\\hiberfil.sys",
+      "note": "休眠檔，約為 RAM 的 40~75%。若不使用休眠/快速啟動可關閉。",
+      "action": "powercfg -h off   (復原：powercfg -h on)",
+      "clean": { "type": "None", "manualOnly": true }
+    },
+    {
+      "id": "pagefile", "risk": "Manual", "category": "系統保留檔",
+      "path": "%SystemDrive%\\pagefile.sys",
+      "note": "分頁檔；可改放到其他磁碟（系統內容 > 進階 > 效能 > 虛擬記憶體），請勿直接刪除。",
+      "action": "系統內容 > 進階 > 效能 設定 > 進階 > 虛擬記憶體",
+      "clean": { "type": "None", "manualOnly": true }
+    },
+    {
+      "id": "swapfile", "risk": "Manual", "category": "系統保留檔",
+      "path": "%SystemDrive%\\swapfile.sys",
+      "note": "UWP 應用程式交換檔，隨分頁檔設定。",
+      "action": "無（隨系統管理）",
+      "clean": { "type": "None", "manualOnly": true }
+    },
+    {
+      "id": "wsl-vhdx", "risk": "Manual", "category": "虛擬磁碟",
+      "path": ["%LOCALAPPDATA%\\Packages\\*\\LocalState\\ext4.vhdx", "%LOCALAPPDATA%\\Docker\\wsl\\*\\*.vhdx", "%LOCALAPPDATA%\\wsl\\*\\ext4.vhdx"],
+      "note": "WSL / Docker 虛擬磁碟，只增不減；需先在內部清理再壓縮。",
+      "action": "wsl --shutdown; wsl --manage <發行版> --set-sparse true   或   Optimize-VHD -Path <vhdx> -Mode Full",
+      "clean": { "type": "None", "manualOnly": true }
+    },
+    {
+      "id": "hyperv-vhd", "risk": "Manual", "category": "虛擬磁碟",
+      "path": ["%ProgramData%\\Microsoft\\Windows\\Virtual Hard Disks", "%PUBLIC%\\Documents\\Hyper-V"],
+      "note": "Hyper-V 虛擬機器磁碟。",
+      "action": "Optimize-VHD -Path <vhdx> -Mode Full，或移到其他磁碟",
+      "clean": { "type": "None", "manualOnly": true }
+    },
+    {
+      "id": "vm-virtualbox-vmware", "risk": "Manual", "category": "虛擬磁碟",
+      "path": ["%USERPROFILE%\\VirtualBox VMs", "%USERPROFILE%\\Documents\\Virtual Machines", "%USERPROFILE%\\vmware"],
+      "note": "VirtualBox / VMware 虛擬機器磁碟（通常是 C 槽最大宗）。可搬到其他磁碟，或刪除不再使用的 VM。",
+      "action": "VirtualBox: 管理員 > 移動 / 移除；VMware: VM > 設定 > 壓縮/移動",
+      "clean": { "type": "None", "manualOnly": true }
+    },
+    {
+      "id": "avast-sandbox", "risk": "Manual", "category": "安全軟體",
+      "path": "%SystemDrive%\\avast! sandbox",
+      "note": "Avast 沙箱虛擬化資料（含沙箱內程式的檔案副本）。請由 Avast 介面清除，勿手動刪除。",
+      "action": "Avast > 保護 > 沙箱 > 清除沙箱資料",
+      "clean": { "type": "None", "manualOnly": true }
+    },
+    {
+      "id": "android-sdk", "risk": "Manual", "category": "開發工具",
+      "path": ["%LOCALAPPDATA%\\Android\\Sdk", "%USERPROFILE%\\.android\\avd"],
+      "note": "Android SDK / 模擬器映像，可在 SDK Manager 內移除不需要的版本。",
+      "action": "Android Studio > SDK Manager 移除舊版映像",
+      "clean": { "type": "None", "manualOnly": true }
+    },
+    {
+      "id": "driverstore", "risk": "Manual", "category": "驅動程式",
+      "path": "%SystemRoot%\\System32\\DriverStore\\FileRepository",
+      "note": "驅動程式庫；請勿手動刪除，可用 pnputil 檢視舊版驅動。",
+      "action": "pnputil /enum-drivers",
+      "clean": { "type": "None", "manualOnly": true }
+    },
+    {
+      "id": "prefetch", "risk": "Manual", "category": "系統保留檔",
+      "path": "%SystemRoot%\\Prefetch",
+      "note": "預取資料；清除可能降低啟動效能，通常不建議清理。",
+      "action": "不建議清理",
+      "clean": { "type": "None", "manualOnly": true }
+    },
+    {
+      "id": "windows-installer", "risk": "Manual", "category": "系統保留檔",
+      "path": "%SystemRoot%\\Installer",
+      "note": "Windows Installer 快取（含 $PatchCache$；修復/解除安裝所需），請勿手動刪除。",
+      "action": "無（請勿手動刪除；可解除安裝不需要的程式來縮減）",
+      "clean": { "type": "None", "manualOnly": true }
+    },
+    {
+      "id": "user-downloads", "risk": "Manual", "category": "使用者資料",
+      "path": "%USERPROFILE%\\Downloads",
+      "note": "下載資料夾；屬使用者資料，只列出由您決定。",
+      "action": "自行檢視 top-files.csv / candidates.csv",
+      "clean": { "type": "None", "manualOnly": true }
+    }
+  ]
+}
