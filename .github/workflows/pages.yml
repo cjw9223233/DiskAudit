@@ -1,0 +1,55 @@
+name: pages
+
+# 把 docs/ 內的 HTML 教學文件發布到 GitHub Pages。
+# 網址：https://<帳號>.github.io/<repo 名稱>/   （index 為 claude-dev-workflow-guide.html）
+#
+# 一次性設定（只需做一次）：
+#   GitHub repo → Settings → Pages → Build and deployment → Source 選「GitHub Actions」
+
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同一時間只部署一次；進行中的部署不要被取消（避免網站停在半套狀態）
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build site
+        run: |
+          set -euo pipefail
+          test -f docs/claude-dev-workflow-guide.html
+          mkdir -p _site
+          cp docs/*.html _site/
+          cp docs/claude-dev-workflow-guide.html _site/index.html
+          touch _site/.nojekyll
+          ls -la _site
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
