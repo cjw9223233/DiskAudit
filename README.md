@@ -237,6 +237,7 @@ D:\Tools\DiskAudit\
 ├─ README.md                本文件
 ├─ CLAUDE.md                給 Claude 的專案規則（硬性規則、編碼約束、指令；每次對話自動載入）
 ├─ .github\workflows\test.yml   CI：每個 PR / push 自動跑靜態檢查與測試（windows-latest）
+├─ .github\workflows\pages.yml  把 docs\ 的 HTML 教學發布到 GitHub Pages（見 6.9）
 ├─ docs\
 │   ├─ CLAUDE-WORKFLOW.md   用 Claude 協作開發：流程、skill、PR / Code Review、護欄（本專案版）
 │   └─ claude-dev-workflow-guide.html   同主題的「通用版」互動教學（可複製到任何專案，雙擊開啟）
@@ -458,6 +459,21 @@ Get-ChildItem -Recurse -Include *.ps1 | Where-Object { $_.FullName -notmatch '\\
 - 還原點（VSS）容量只做「盡力解析」，輸出語系不同時可能解析失敗，原文會附在說明內。
 - 規則庫對「其他使用者」只涵蓋 `user-temp`；其他快取規則僅對目前使用者展開。
 - 沒有排程/自動化執行；如需定期稽核，可用工作排程器呼叫 `Invoke-DiskAudit.ps1 -NoOpen`（唯讀）。
+
+### 6.9 發布教學網頁（GitHub Pages）
+
+`.github/workflows/pages.yml` 會把 `docs/` 內的 HTML 發布成網站，`claude-dev-workflow-guide.html` 會成為首頁。
+
+**一次性設定**（沒做這步，workflow 會失敗）：GitHub repo → **Settings → Pages → Build and deployment → Source** 選 **GitHub Actions**。
+
+**觸發時機**：推送到 `master` / `main` 且 `docs/` 或 `pages.yml` 有變更；也可在 GitHub 的 Actions 頁手動執行（`workflow_dispatch`）。
+
+**網址**：`https://<GitHub 帳號>.github.io/<repo 名稱>/`（部署完成後也會顯示在 Actions 該次執行的摘要中）。
+
+**注意**：
+- 私有 repo 使用 Pages 需要付費方案（Pro / Team / Enterprise）；免費帳號只有公開 repo 能用。
+- 即使 repo 是私有的，發布出去的網站通常是**公開可瀏覽**的（除非使用 Enterprise Cloud 的私有 Pages）。`docs/` 裡只放可以公開的內容，**不要放報表、路徑、機密**。
+- 部署只會從預設分支（`master` / `main`）進行，PR 分支不會發布。
 
 ---
 
