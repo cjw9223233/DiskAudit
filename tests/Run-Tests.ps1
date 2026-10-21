@@ -155,8 +155,18 @@ try {
     Write-Host "`n== T-Params：參數邊界 ==" -ForegroundColor Cyan
     $threw = $false; try { & $audit -Root (Join-Path $WorkDir 'no-such-dir') -OutDir $reports -NoOpen 6>$null | Out-Null } catch { $threw = $true }
     Assert-That '-Root 不存在 → 明確錯誤' $threw
-    $threw = $false; try { & $audit -Root $fx -OutDir (Join-Path $fx 'out-inside') -NoOpen 6>$null | Out-Null } catch { $threw = $true }
+    $threw = $false; $errMsg = ''
+    try { & $audit -Root $fx -OutDir (Join-Path $fx 'out-inside') -NoOpen 6>$null | Out-Null } catch { $threw = $true; $errMsg = $_.Exception.Message }
     Assert-That '-OutDir 位於掃描根目錄內 → 拒絕' $threw
+    Assert-That '拒絕訊息附上可複製的建議指令（含 -Root 與 -OutDir）' ($errMsg -match 'Invoke-DiskAudit\.ps1 .*-Root .*-OutDir ') $errMsg
+    Assert-That '建議指令保留原有的其他參數（-NoOpen）' ($errMsg -match '-NoOpen') $errMsg
+
+    # 建議的報表位置：必須在掃描範圍外
+    $sug = $null; try { $sug = Get-SuggestedOutDir -Roots @($fx) } catch { }
+    Assert-That 'Get-SuggestedOutDir 回傳掃描範圍外的位置' ($sug -and -not (($sug.TrimEnd('\') + '\').StartsWith($fx.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase))) ([string]$sug)
+    $allFixed = @([IO.DriveInfo]::GetDrives() | Where-Object { $_.DriveType -eq 'Fixed' -and $_.IsReady -and $_.AvailableFreeSpace -ge 1GB } | ForEach-Object { $_.RootDirectory.FullName })
+    $sugAll = 'x'; try { $sugAll = Get-SuggestedOutDir -Roots $allFixed } catch { }
+    Assert-That '掃描範圍涵蓋所有固定磁碟時回傳 $null（無範圍外可用）' ($null -eq $sugAll) ([string]$sugAll)
     $threw = $false; try { & $audit -Root $fx, (Join-Path $fx 'tree') -OutDir $reports -NoOpen 6>$null | Out-Null } catch { $threw = $true }
     Assert-That '-Root 互相包含 → 拒絕' $threw
 

@@ -159,3 +159,29 @@ function Get-FixedVolumeInfo {
         }
     } catch { return $null }
 }
+
+function Get-SuggestedOutDir {
+    # 找一個「不在任何掃描根目錄內」的報表資料夾建議位置；找不到回傳 $null。
+    # 候選：各固定磁碟（剩餘 >= 1GB）根目錄下的 DiskAuditReports，優先選剩餘空間最大者。
+    param([Parameter(Mandatory)][string[]]$Roots)
+    $best = $null; $bestFree = -1L
+    foreach ($d in [IO.DriveInfo]::GetDrives()) {
+        try {
+            if ($d.DriveType -ne 'Fixed' -or -not $d.IsReady -or $d.AvailableFreeSpace -lt 1GB) { continue }
+            $cand = Join-Path $d.RootDirectory.FullName 'DiskAuditReports'
+            $inside = $false
+            foreach ($r in $Roots) {
+                if (($cand.TrimEnd('\') + '\').StartsWith($r.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) { $inside = $true; break }
+            }
+            if (-not $inside -and $d.AvailableFreeSpace -gt $bestFree) { $best = $cand; $bestFree = $d.AvailableFreeSpace }
+        } catch { }
+    }
+    return $best
+}
+
+function Format-CmdArg {
+    # 組出可直接複製貼上的指令參數（含空白時加引號）
+    param([string]$Value)
+    if ($Value -match '\s') { return '"' + $Value + '"' }
+    return $Value
+}

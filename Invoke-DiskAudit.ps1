@@ -78,7 +78,25 @@ foreach ($a in $roots) {
 $outFull = [IO.Path]::GetFullPath($OutDir)
 foreach ($r in $roots) {
     if (($outFull.TrimEnd('\') + '\').StartsWith($r.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) {
-        throw "報表位置不可位於掃描根目錄內：$outFull（請用 -OutDir 指向範圍外的資料夾）"
+        # 組出可直接複製的建議指令：保留使用者原本的參數，只換掉 -OutDir
+        $suggest = Get-SuggestedOutDir -Roots $roots
+        $parts = New-Object System.Collections.Generic.List[string]
+        $parts.Add('.\Invoke-DiskAudit.ps1')
+        foreach ($kv in $PSBoundParameters.GetEnumerator()) {
+            if ($kv.Key -eq 'OutDir') { continue }
+            if ($kv.Value -is [System.Management.Automation.SwitchParameter]) { if ($kv.Value.IsPresent) { $parts.Add('-' + $kv.Key) } }
+            elseif ($kv.Value -is [array]) { $parts.Add('-' + $kv.Key + ' ' + ((@($kv.Value) | ForEach-Object { Format-CmdArg ([string]$_) }) -join ',')) }
+            else { $parts.Add('-' + $kv.Key + ' ' + (Format-CmdArg ([string]$kv.Value))) }
+        }
+        if (-not $PSBoundParameters.ContainsKey('Root')) { $parts.Insert(1, '-Root ' + (($roots | ForEach-Object { Format-CmdArg $_ }) -join ',')) }
+        if ($suggest) {
+            $parts.Add('-OutDir ' + (Format-CmdArg $suggest))
+            $hint = "建議改用（可直接複製執行）：`n  " + ($parts -join ' ')
+        }
+        else {
+            $hint = '掃描範圍已涵蓋所有可用磁碟，找不到範圍外的位置。請改掃單一磁碟或資料夾，或用 -OutDir 指向可移除磁碟／網路位置。'
+        }
+        throw ("報表位置不可位於掃描根目錄內：{0}`n原因：報表若寫進被掃描範圍，會被算進統計（下次掃描會把上次的報表也算進去）。`n{1}" -f $outFull, $hint)
     }
 }
 $vOut = Get-FixedVolumeInfo $outFull
