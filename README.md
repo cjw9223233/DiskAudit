@@ -10,6 +10,7 @@
 | 看懂報表、知道哪些能刪 | [三、怎麼讀報表與決策](#三怎麼讀報表與決策) |
 | 出問題 / 看不懂錯誤 | [五、疑難排解](#五疑難排解) |
 | 要維護、修改、擴充專案 | [六、維護者指南](#六維護者指南進入專案維修) |
+| 想用 Claude 協助開發、做 PR / Code Review | [docs/CLAUDE-WORKFLOW.md](docs/CLAUDE-WORKFLOW.md)（本專案版）、[通用 HTML 教學](docs/claude-dev-workflow-guide.html) |
 
 ---
 
@@ -234,6 +235,9 @@ D:\Tools\DiskAudit\
 ├─ known-targets.json       規則庫（Safe / Review / Manual），可自行增修
 ├─ PLAN_REVIEW.md           保守分級的依據（原版對計畫的檢視結論）
 ├─ README.md                本文件
+├─ docs\
+│   ├─ CLAUDE-WORKFLOW.md   用 Claude 協作開發：流程、skill、PR / Code Review、護欄（本專案版）
+│   └─ claude-dev-workflow-guide.html   同主題的「通用版」互動教學（可複製到任何專案，雙擊開啟）
 ├─ tests\
 │   ├─ Run-Tests.ps1        自動化測試（不需 Pester）
 │   └─ New-Fixture.ps1      建立可丟棄的測試資料夾與預期值

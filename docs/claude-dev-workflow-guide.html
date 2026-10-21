@@ -1,0 +1,730 @@
+<!doctype html>
+<html lang="zh-Hant" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude 協作開發指南</title>
+<meta name="description" content="任何軟體專案都能用的 Claude 協作開發流程：從立規矩、Plan、分支、實作、審查到 PR / CI 與發版的完整教學。">
+<style>
+:root{
+  --bg:#f6f6f3; --surface:#ffffff; --fg:#1c1c1a; --muted:#66665f; --line:#dcdcd3;
+  --accent:#2a6df4; --accent-soft:#e6eefe; --ok:#1b8a4b; --ok-soft:#e3f4ea;
+  --warn:#a86a00; --warn-soft:#fdf1d8; --bad:#c53030; --bad-soft:#fbe5e5;
+  --code-bg:#f0f0ea; --shadow:0 1px 2px rgba(0,0,0,.06);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#151514; --surface:#1e1e1c; --fg:#ecece7; --muted:#a0a09a; --line:#34342f;
+    --accent:#7aa5ff; --accent-soft:#1b2a4a; --ok:#4cc27d; --ok-soft:#173023;
+    --warn:#e3b455; --warn-soft:#3a2d12; --bad:#ff8080; --bad-soft:#3d1c1c;
+    --code-bg:#2a2a27; --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#151514; --surface:#1e1e1c; --fg:#ecece7; --muted:#a0a09a; --line:#34342f;
+  --accent:#7aa5ff; --accent-soft:#1b2a4a; --ok:#4cc27d; --ok-soft:#173023;
+  --warn:#e3b455; --warn-soft:#3a2d12; --bad:#ff8080; --bad-soft:#3d1c1c;
+  --code-bg:#2a2a27; --shadow:none;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:70px}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.7 "Segoe UI","Microsoft JhengHei","Noto Sans TC",system-ui,sans-serif}
+a{color:var(--accent)}
+.topbar{position:sticky;top:0;z-index:10;background:var(--surface);border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:12px;padding:10px 16px}
+.topbar strong{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+button,.btn{font:inherit;font-size:14px;color:var(--fg);background:var(--surface);border:1px solid var(--line);
+  border-radius:6px;padding:4px 10px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+.layout{max-width:1120px;margin:0 auto;padding:20px 16px 80px;display:grid;grid-template-columns:230px minmax(0,1fr);gap:28px}
+nav.toc{position:sticky;top:64px;align-self:start;max-height:calc(100vh - 80px);overflow:auto;font-size:14px}
+nav.toc a{display:block;padding:3px 8px;border-left:2px solid var(--line);color:var(--muted);text-decoration:none}
+nav.toc a:hover,nav.toc a.on{color:var(--accent);border-left-color:var(--accent)}
+main{min-width:0}
+@media (max-width:860px){.layout{grid-template-columns:minmax(0,1fr)}nav.toc{display:none}}
+header.hero{margin-bottom:8px}
+h1{font-size:30px;line-height:1.25;margin:6px 0 8px}
+h2{font-size:23px;margin:46px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+h3{font-size:18px;margin:26px 0 8px}
+p{margin:10px 0}
+.lead{font-size:18px;color:var(--muted)}
+.pill{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);margin-right:4px}
+.callout{border-left:4px solid var(--accent);background:var(--accent-soft);padding:10px 14px;border-radius:0 6px 6px 0;margin:14px 0}
+.callout.ok{border-color:var(--ok);background:var(--ok-soft)}
+.callout.warn{border-color:var(--warn);background:var(--warn-soft)}
+.callout.bad{border-color:var(--bad);background:var(--bad-soft)}
+.callout b.t{display:block;margin-bottom:2px}
+.tw{overflow-x:auto;margin:12px 0}
+table{border-collapse:collapse;width:100%;background:var(--surface);border:1px solid var(--line);font-size:15px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{background:var(--bg);white-space:nowrap}
+code{font:13px/1.5 Consolas,"Cascadia Mono",monospace;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+pre{position:relative;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:12px 14px;overflow-x:auto;margin:12px 0}
+pre code{background:none;padding:0;font-size:13px;white-space:pre}
+pre button.copy{position:absolute;top:6px;right:6px;font-size:12px;padding:2px 8px;opacity:.85}
+.pipeline{display:flex;flex-wrap:wrap;gap:8px;list-style:none;padding:0;margin:16px 0;counter-reset:s}
+.pipeline li{flex:1 1 130px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;
+  position:relative;counter-increment:s;box-shadow:var(--shadow)}
+.pipeline li::before{content:counter(s);display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;
+  border-radius:50%;background:var(--accent);color:#fff;font-size:13px;margin-right:6px}
+.pipeline li b{font-size:15px}
+.pipeline li span{display:block;color:var(--muted);font-size:13px;margin-top:2px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:14px 0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;box-shadow:var(--shadow)}
+.card h4{margin:0 0 6px;font-size:16px}
+.card p{margin:4px 0;font-size:14px;color:var(--muted)}
+.steps{list-style:none;padding:0;margin:14px 0;counter-reset:st}
+.steps>li{counter-increment:st;position:relative;padding:2px 0 14px 46px;border-left:2px solid var(--line);margin-left:15px}
+.steps>li::before{content:counter(st);position:absolute;left:-16px;top:0;width:30px;height:30px;border-radius:50%;
+  background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600}
+.steps>li:last-child{border-left-color:transparent}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;margin:10px 0;padding:2px 14px}
+details>summary{cursor:pointer;font-weight:600;padding:8px 0}
+.search{width:100%;padding:8px 12px;font:inherit;background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:8px}
+.check{display:flex;gap:10px;align-items:flex-start;padding:6px 0;border-bottom:1px dashed var(--line)}
+.check input{margin-top:6px;width:18px;height:18px;flex:none}
+.check.done label{text-decoration:line-through;color:var(--muted)}
+.progress{height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin:6px 0 10px}
+.progress i{display:block;height:100%;background:var(--ok);width:0;transition:width .2s}
+.risk-low{color:var(--ok)}.risk-mid{color:var(--warn)}.risk-high{color:var(--bad)}
+footer{margin-top:60px;padding-top:14px;border-top:1px solid var(--line);color:var(--muted);font-size:14px}
+@media print{.topbar,nav.toc,button.copy{display:none}.layout{display:block}details{break-inside:avoid}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <strong>Claude 協作開發指南</strong>
+  <button id="themeBtn" type="button" aria-label="切換深色/淺色">🌓 主題</button>
+  <button type="button" onclick="window.print()">列印</button>
+</div>
+
+<div class="layout">
+<nav class="toc" aria-label="目錄" id="toc"></nav>
+
+<main>
+<header class="hero">
+  <span class="pill">通用版</span><span class="pill">適用任何軟體專案</span><span class="pill">PM / 工程 / 新手</span>
+  <h1>用 Claude 協作開發：從立規矩到 PR 的完整指南</h1>
+  <p class="lead">不論你做的是網站、後端、手機 App、資料分析還是小腳本，這份指南都能直接套用。
+  內容涵蓋心法、流程、可用的 skill 與指令、Code Review、PR 與 CI、護欄與檢查清單。</p>
+</header>
+
+<div class="callout">
+  <b class="t">怎麼使用這份文件</b>
+  <b>新手</b>：先讀第 1、2 章，再照第 4 章「一步一步」做一遍。
+  <b>已經在用</b>：直接查第 5 章 skill 速查、第 9 章提示範本、第 12 章檢查清單。
+  <b>接新專案</b>：跳到第 3 章「專案啟動清單」，並複製第 8 章的 <code>CLAUDE.md</code> 範本。
+</div>
+
+<!-- ===================================================== 1 -->
+<h2 id="mindset">1. 核心心法</h2>
+<div class="cards">
+  <div class="card"><h4>🧑‍💼 Claude 是資深同事，不是自動駕駛</h4>
+    <p>它能快速讀程式、寫程式、跑測試、寫文件。但「要不要做」與「做對了沒」的責任永遠在你。</p></div>
+  <div class="card"><h4>🧭 目標清楚，它才走得準</h4>
+    <p>越模糊的需求越需要你驗收。好需求 = 目標 + 範圍 + 驗收方式 + 限制。</p></div>
+  <div class="card"><h4>🛟 先有安全網再動手</h4>
+    <p>先 commit 乾淨狀態、有測試、有分支。出事時一鍵還原，這是用 AI 協作最便宜的保險。</p></div>
+  <div class="card"><h4>🔍 信任但要驗證</h4>
+    <p>要求它如實回報「沒驗證到的部分」。「應該可以」不等於「驗證過」。</p></div>
+</div>
+
+<div class="callout warn">
+  <b class="t">一個真實的教訓</b>
+  曾有一次，Claude 把「已經有內容的資料夾」誤當成新資料夾，覆寫了兩個檔案。事後因為來源還在，才得以還原。
+  如果當時資料夾已在 git 裡、改完看過 <code>git diff</code>，幾秒內就能發現並還原。
+  <b>所以：先 commit，再讓它改；改完先看 diff，再 commit。</b>
+</div>
+
+<h3>誰負責什麼</h3>
+<div class="tw"><table>
+<thead><tr><th>事項</th><th>Claude 可以做</th><th>一定要你決定</th></tr></thead>
+<tbody>
+<tr><td>理解程式碼</td><td>讀檔案、畫資料流、找風險點</td><td>哪些行為是「刻意的設計」</td></tr>
+<tr><td>實作</td><td>寫程式、補測試、重構、修 bug</td><td>需求取捨、優先順序</td></tr>
+<tr><td>審查</td><td>找 bug、簡化、查安全問題</td><td>哪些發現要修、哪些接受風險</td></tr>
+<tr><td>版本控制</td><td>寫 commit 訊息、開 PR、處理衝突</td><td><b>push、merge、發版</b>的核准</td></tr>
+<tr><td>危險動作</td><td>先預覽、列出影響</td><td><b>刪檔、改正式環境、動憑證</b>的核准</td></tr>
+</tbody></table></div>
+
+<!-- ===================================================== 2 -->
+<h2 id="flow">2. 整體流程總覽</h2>
+<ol class="pipeline">
+  <li><b>立規矩</b><span><code>/init</code> 產生 CLAUDE.md</span></li>
+  <li><b>想清楚</b><span>Plan 模式，核准後才動手</span></li>
+  <li><b>開分支</b><span>一個需求一條分支</span></li>
+  <li><b>實作＋測試</b><span>小步前進、跑測試</span></li>
+  <li><b>審查</b><span>review / simplify / security</span></li>
+  <li><b>commit / PR</b><span>你核准後推送</span></li>
+  <li><b>CI＋合併</b><span>測試過、人工核准</span></li>
+  <li><b>維運</b><span>排程、監控、回顧</span></li>
+</ol>
+
+<div class="callout ok">
+  <b class="t">經驗法則</b>
+  <b>小事</b>（改文字、改設定、單檔小 bug）可以直接說；<b>中大型事</b>（新功能、重構、動資料或刪除邏輯）一律先 Plan。
+</div>
+
+<!-- ===================================================== 3 -->
+<h2 id="kickoff">3. 專案啟動清單（任何新專案先做）</h2>
+<p>勾選狀態會存在這個瀏覽器裡，換專案時按「重設」即可。</p>
+<div class="progress"><i id="p-kickoff"></i></div>
+<div id="ck-kickoff" class="checklist" data-key="kickoff">
+  <div class="check"><input type="checkbox" id="k1"><label for="k1"><b>git 初始化</b>：<code>git init</code>，並先做第一次 commit（乾淨基準）。</label></div>
+  <div class="check"><input type="checkbox" id="k2"><label for="k2"><b>.gitignore</b>：排除建置產物、相依套件、暫存、<b>機密與本機產物</b>（如 <code>.env</code>、執行報表、log）。</label></div>
+  <div class="check"><input type="checkbox" id="k3"><label for="k3"><b>CLAUDE.md</b>：執行 <code>/init</code> 產生，再人工審閱補上專案規則（見第 8 章範本）。</label></div>
+  <div class="check"><input type="checkbox" id="k4"><label for="k4"><b>一鍵測試指令</b>：確保有「單一指令」能跑全部測試，並寫進 CLAUDE.md 與 README。</label></div>
+  <div class="check"><input type="checkbox" id="k5"><label for="k5"><b>分支策略</b>：主分支受保護，所有變更走短命分支 + PR。</label></div>
+  <div class="check"><input type="checkbox" id="k6"><label for="k6"><b>遠端 repo</b>：建立 <b>private</b> 遠端並推送；<code>gh auth login</code> 登入 GitHub CLI。</label></div>
+  <div class="check"><input type="checkbox" id="k7"><label for="k7"><b>CI</b>：至少讓測試在每個 PR 自動跑（見第 7 章範例）。</label></div>
+  <div class="check"><input type="checkbox" id="k8"><label for="k8"><b>機密管理</b>：金鑰與密碼放環境變數或祕密管理服務，絕不進 repo 或對話。</label></div>
+  <div class="check"><input type="checkbox" id="k9"><label for="k9"><b>權限習慣</b>：預設「每次詢問」；只對確定安全的唯讀指令放寬。</label></div>
+  <div class="check"><input type="checkbox" id="k10"><label for="k10"><b>文件</b>：README 說明如何安裝、執行、測試；docs/ 放設計與流程文件。</label></div>
+</div>
+<p><button type="button" data-reset="kickoff">重設此清單</button></p>
+
+<details>
+<summary>最小可用的 .gitignore 範例（請依語言增減）</summary>
+<pre><code># 機密與本機設定
+.env
+.env.*
+*.pem
+*.key
+
+# 相依與建置產物（依專案調整）
+node_modules/
+dist/
+build/
+__pycache__/
+*.pyc
+bin/
+obj/
+
+# 執行產生的資料
+reports/
+logs/
+*.log
+tmp/
+.DS_Store
+Thumbs.db</code></pre>
+</details>
+
+<!-- ===================================================== 4 -->
+<h2 id="tutorial">4. Step by Step：做一個功能的標準走法</h2>
+<p>以「新增一個功能」為例，修 bug、重構的差異見第 4.2 節。</p>
+
+<ol class="steps">
+  <li><h3>確認起點是乾淨的</h3>
+    <p>在專案資料夾執行：</p>
+<pre><code>git status          # 應該沒有未提交的變更
+git switch -c feat/你的功能名稱</code></pre>
+    <p>有未提交變更就先 commit 或 stash。這一步讓你之後能用 <code>git diff</code> 精準看到 Claude 改了什麼。</p>
+  </li>
+  <li><h3>用 Plan 模式描述需求</h3>
+    <p>切到 Plan 模式（不會改檔），貼上需求。好需求長這樣：</p>
+<pre><code>目標：使用者可以在設定頁匯出 CSV。
+範圍：只改 settings 模組與其測試；不改資料庫結構。
+驗收：1) 點匯出得到 UTF-8 CSV  2) 空資料時給友善提示  3) 新增的測試全過
+限制：不新增第三方套件；沿用現有錯誤處理風格。
+請先列出會動到哪些檔案、風險與測試計畫，等我核准再動手。</code></pre>
+    <p>審閱它的計畫：範圍是否過大？有沒有漏掉邊界情況？不對就要求修改計畫，<b>核准後才讓它實作</b>。</p>
+  </li>
+  <li><h3>讓它小步實作並跑測試</h3>
+    <p>核准後讓 Claude 實作。要求它：</p>
+    <ul>
+      <li>每完成一小段就跑測試，不要一次改一大坨。</li>
+      <li>同時補上測試（先寫會失敗的測試，再讓它通過，最可靠）。</li>
+      <li>結束時回報：改了哪些檔、測試結果、<b>哪些沒驗證到</b>。</li>
+    </ul>
+  </li>
+  <li><h3>你自己看一遍 diff</h3>
+<pre><code>git diff --stat      # 先看改了哪些檔、各多少行
+git diff             # 再看細節</code></pre>
+    <p>檢查：有沒有動到你沒要求的檔案？有沒有放寬安全規則、刪掉測試、寫死路徑或機密？</p>
+  </li>
+  <li><h3>跑審查指令</h3>
+    <p>依序執行（詳見第 5、6 章）：</p>
+<pre><code>/code-review high      # 找 bug
+/simplify              # 收尾：去重複、簡化
+/security-review       # 動到權限、刪除、輸入處理、網路時必跑</code></pre>
+    <p>對每個發現決定：修 / 不修（寫理由）/ 另開 issue。</p>
+  </li>
+  <li><h3>commit 與開 PR</h3>
+<pre><code>git add -A
+git commit -m "feat: 設定頁新增 CSV 匯出"
+git push -u origin feat/你的功能名稱</code></pre>
+    <p>然後請 Claude 開 PR（或在桌面 app 點「建立 PR」）。PR 說明格式見第 7 章。</p>
+  </li>
+  <li><h3>等 CI、人工核准、合併</h3>
+    <p>CI 全綠、你看過 PR 內容後，由你按 merge。若 CI 失敗，可請 Claude 讀失敗記錄修正（或開啟 Auto-fix），修完再推送。</p>
+  </li>
+  <li><h3>收尾與回顧</h3>
+    <p>刪除已合併的分支；若發現 Claude 反覆犯同樣錯誤，把規則補進 <code>CLAUDE.md</code>，讓下次自動遵守。</p>
+  </li>
+</ol>
+
+<h3 id="variants">4.2 不同工作類型的差異</h3>
+<div class="tw"><table>
+<thead><tr><th>類型</th><th>起手式</th><th>重點</th></tr></thead>
+<tbody>
+<tr><td><b>修 bug</b></td><td>「先重現問題 → 寫一個會失敗的測試 → 修到測試通過」</td><td>測試先行；確認修的是根因而不是症狀</td></tr>
+<tr><td><b>重構</b></td><td>「不改外部行為。先確認現有測試涵蓋，再小步重構」</td><td>每步都跑測試；一個 PR 只做重構，不夾帶新功能</td></tr>
+<tr><td><b>接手陌生專案</b></td><td>「讀 README 與主要入口，用 5 句話說明資料流，並指出最容易壞的 3 個地方」</td><td>先只讀不改；產出 <code>/init</code> 的 CLAUDE.md 後再動手</td></tr>
+<tr><td><b>緊急修補 (hotfix)</b></td><td>從主分支開 <code>hotfix/*</code>，只改必要的最小範圍</td><td>仍要測試與 PR；事後補回歸測試與回顧</td></tr>
+<tr><td><b>升級相依套件</b></td><td>「一次只升一個；列出 breaking changes；跑完整測試」</td><td>小 PR；保留可回滾</td></tr>
+<tr><td><b>寫文件</b></td><td>「依目前程式碼更新 X 章節，不要改其他段落」</td><td>限制範圍，避免整份被重寫</td></tr>
+<tr><td><b>資料／腳本類</b></td><td>「先預覽（dry-run），不要實際寫入或刪除」</td><td>寫入前列出影響筆數；破壞性動作需明確核准</td></tr>
+</tbody></table></div>
+
+<!-- ===================================================== 5 -->
+<h2 id="skills">5. 可用的 Skill 與指令速查</h2>
+<div class="callout">
+  <b class="t">注意</b>
+  實際可用的指令依你的版本與安裝的外掛而異。在對話中輸入 <code>/</code> 會列出目前可用者；下表是常見且與一般軟體專案相關的。
+</div>
+<input class="search" id="skillSearch" type="search" placeholder="搜尋指令或用途，例如：review、排程、安全…" aria-label="搜尋指令">
+<div class="tw"><table id="skillTable">
+<thead><tr><th>指令 / Skill</th><th>用途</th><th>什麼時候用</th></tr></thead>
+<tbody>
+<tr><td><code>/init</code></td><td>分析專案並建立 <code>CLAUDE.md</code>（專案規則與常用指令）</td><td>新專案第一件事；接手專案時</td></tr>
+<tr><td><code>/code-review</code></td><td>審查目前改動、找出正確性問題。可加等級 <code>low</code> <code>medium</code> <code>high</code> <code>xhigh</code> <code>max</code>；<code>--fix</code> 套用修正；<code>--comment</code> 貼成 PR 行內留言；<code>--max-findings &lt;n&gt;</code> 限制數量；可指定 PR 編號、分支或路徑</td><td>每個 PR 前；平常 <code>high</code> 即可</td></tr>
+<tr><td><code>/code-review ultra</code></td><td>雲端多代理深度審查（可指定 PR 編號）。<b>只有你能觸發、會計費</b>，Claude 無法代你啟動；需為 git repo</td><td>大改動、發版前的最後把關</td></tr>
+<tr><td><code>/simplify</code></td><td>找重複、可簡化、效率問題，並直接修（只做品質，不抓 bug）</td><td>功能完成後收尾</td></tr>
+<tr><td><code>/security-review</code></td><td>針對待提交變更做安全審查</td><td>動到登入、權限、輸入處理、檔案/網路、刪除或金流邏輯時必跑</td></tr>
+<tr><td><code>/run</code></td><td>實際啟動並操作專案，確認改動在真實環境有效</td><td>測試過了還要「親眼看到它會動」時</td></tr>
+<tr><td><code>/schedule</code></td><td>建立定期（或一次性）執行的雲端排程任務</td><td>每週依賴檢查、每月報表、定時巡檢</td></tr>
+<tr><td><code>/loop</code></td><td>依間隔重複執行某個提示或指令</td><td>短期內反覆檢查某狀態</td></tr>
+<tr><td><code>/update-config</code></td><td>設定 hooks、權限、環境變數（settings.json）</td><td>需要「每次都必定發生」的行為（如存檔後自動格式化/檢查）</td></tr>
+<tr><td><code>/fewer-permission-prompts</code></td><td>掃描歷史，建議哪些唯讀指令可預先允許</td><td>嫌權限提示太煩，但不想全放行時</td></tr>
+<tr><td>Plan 模式</td><td>只讀取、規劃，不改檔，等你核准</td><td>新功能、重構、任何不確定的事</td></tr>
+<tr><td>並行 session / worktree</td><td>同時處理多件互不相干的事，各自獨立工作目錄</td><td>避免兩件工作互相覆蓋</td></tr>
+<tr><td>文件類 skill（docs / docx / pdf / pptx / xlsx）</td><td>產出可共享文件、Word、PDF、簡報、試算表</td><td>給主管的報告、規格書、會議簡報</td></tr>
+<tr><td><code>skill-creator</code></td><td>把重複的流程做成自己的 skill</td><td>團隊有固定流程（發版檢查、事故回顧）時</td></tr>
+</tbody></table></div>
+
+<div class="callout warn">
+  <b class="t">口頭交代 ≠ 保證</b>
+  「每次改完都要檢查 X」這種規則，用說的只能靠 Claude 記得；<b>要保證每次都發生，請用 hook（<code>/update-config</code>）或 CI</b>。
+</div>
+
+<!-- ===================================================== 6 -->
+<h2 id="review">6. Code Review 怎麼用才有效</h2>
+
+<h3>6.1 選對等級</h3>
+<div class="tw"><table>
+<thead><tr><th>等級</th><th>特性</th><th>適合</th></tr></thead>
+<tbody>
+<tr><td><code>low</code> / <code>medium</code></td><td>只回報少數高信心問題</td><td>小改動、快速自檢</td></tr>
+<tr><td><code>high</code></td><td>平衡覆蓋與雜訊</td><td><b>一般 PR 的預設選擇</b></td></tr>
+<tr><td><code>xhigh</code> / <code>max</code></td><td>找得最多，但含不確定項、花費較高</td><td>關鍵模組、重大重構</td></tr>
+<tr><td><code>ultra</code></td><td>雲端多代理，最深入，計費</td><td>發版前、核心安全改動</td></tr>
+</tbody></table></div>
+
+<h3>6.2 發現怎麼處理（Triage）</h3>
+<div class="tw"><table>
+<thead><tr><th>嚴重度</th><th>例子</th><th>處置</th></tr></thead>
+<tbody>
+<tr><td class="risk-high"><b>阻擋</b></td><td>資料遺失、安全漏洞、必現的崩潰、錯誤的計算</td><td>合併前必修，補回歸測試</td></tr>
+<tr><td class="risk-mid"><b>重要</b></td><td>邊界條件錯誤、錯誤處理缺漏、效能退化</td><td>本 PR 修，或開 issue 並註明期限</td></tr>
+<tr><td class="risk-low"><b>次要</b></td><td>命名、重複、風格</td><td>順手修或忽略；不要讓它拖慢合併</td></tr>
+<tr><td><b>誤報</b></td><td>Claude 誤解了設計意圖</td><td>回覆理由；若常發生，把設計意圖寫進 CLAUDE.md</td></tr>
+</tbody></table></div>
+
+<h3>6.3 審查三件套的順序</h3>
+<ol>
+  <li><code>/code-review high</code>：先確保「對不對」。</li>
+  <li><code>/simplify</code>：再整理「好不好維護」。</li>
+  <li><code>/security-review</code>：最後把關「安不安全」。</li>
+</ol>
+<p>改完再看一次 <code>git diff</code>，因為審查修正本身也是新的變更。</p>
+
+<div class="callout">
+  <b class="t">人類審查者仍然重要</b>
+  Claude 的審查不能取代團隊成員對「需求是否正確、設計是否合理」的判斷。
+  建議流程：<b>自己先跑 Claude 審查 → 修完 → 再請同事看 PR</b>，讓同事專注在設計與業務邏輯。
+</div>
+
+<!-- ===================================================== 7 -->
+<h2 id="pr">7. PR 與 CI</h2>
+
+<h3>7.1 前置條件</h3>
+<ul>
+  <li>有遠端 repo（GitHub 等）：<code>git remote add origin &lt;URL&gt;</code> 後 <code>git push -u origin main</code>。沒有遠端就無法開 PR。</li>
+  <li>安裝並登入 GitHub CLI：<code>gh auth login</code>（PR、issue、CI 查詢都靠它）。</li>
+  <li>在平台設定<b>分支保護</b>：禁止直接推主分支、要求 PR、要求 CI 通過、（建議）至少一位審查者。</li>
+</ul>
+
+<h3>7.2 在 Claude 桌面 app 中</h3>
+<ol>
+  <li>需求完成後，下一步區塊會出現「<b>建立 PR</b>」按鈕，Claude 會撰寫標題與說明並開 PR。</li>
+  <li>PR 開出後會綁定該 PR，可開啟 <b>Auto-fix</b>：CI 失敗、合併衝突、審查留言時自動交給 Claude 處理。</li>
+  <li>Claude 不會自己輪詢 CI，也<b>不會自動 merge</b>（除非你明確要求）。</li>
+  <li><code>/code-review --comment</code> 可把審查發現貼成 PR 行內留言。</li>
+</ol>
+
+<h3>7.3 好 PR 的標準</h3>
+<div class="tw"><table>
+<thead><tr><th>項目</th><th>要求</th></tr></thead>
+<tbody>
+<tr><td>大小</td><td>一個 PR 只做一件事；超過約 400 行變更就考慮拆</td></tr>
+<tr><td>標題</td><td>慣例前綴 + 一句話：<code>feat:</code> <code>fix:</code> <code>docs:</code> <code>test:</code> <code>refactor:</code> <code>chore:</code></td></tr>
+<tr><td>說明</td><td>為什麼改、改了什麼、<b>怎麼測</b>、<b>沒測到什麼</b>、風險與回滾方式</td></tr>
+<tr><td>檢查</td><td>測試全過；動到敏感區域附上 <code>/security-review</code> 結論</td></tr>
+<tr><td>回滾</td><td>說明方法（通常 <code>git revert &lt;commit&gt;</code>）；有資料遷移要寫明</td></tr>
+</tbody></table></div>
+
+<h3>7.4 PR 說明範本</h3>
+<pre><button class="copy" type="button">複製</button><code>## 為什麼
+&lt;問題或需求，一兩句&gt;
+
+## 改了什麼
+- &lt;重點 1&gt;
+- &lt;重點 2&gt;
+
+## 怎麼測
+- [ ] 自動測試：&lt;指令&gt; 全數通過
+- [ ] 手動驗證：&lt;步驟與結果&gt;
+
+## 沒測到 / 已知限制
+- &lt;誠實列出&gt;
+
+## 風險與回滾
+- 風險：&lt;影響範圍&gt;
+- 回滾：git revert &lt;commit&gt;（無資料遷移 / 需先執行 ...）
+
+## 審查
+- /code-review high：&lt;結論&gt;
+- /security-review：&lt;結論或不適用&gt;</code></pre>
+
+<h3>7.5 CI 範例（GitHub Actions，請替換測試指令）</h3>
+<pre><button class="copy" type="button">複製</button><code># .github/workflows/test.yml
+name: test
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest        # Windows 專案改成 windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      # 依語言設定執行環境，例如：
+      # - uses: actions/setup-node@v4
+      #   with: { node-version: 20 }
+      - name: Run tests
+        run: &lt;你的一鍵測試指令&gt;     # 例如 npm test / pytest / dotnet test / ./tests/Run-Tests.ps1</code></pre>
+<p class="muted" style="color:var(--muted)">第一次在 CI 上跑，請觀察是否因環境差異（路徑、權限、相依套件）失敗；有 CI 之後，Auto-fix 才有可依據的訊號。</p>
+
+<h3>7.6 分支與提交慣例</h3>
+<div class="tw"><table>
+<thead><tr><th>項目</th><th>建議</th></tr></thead>
+<tbody>
+<tr><td>分支名</td><td><code>feat/…</code> <code>fix/…</code> <code>docs/…</code> <code>hotfix/…</code>，短命（數天內合併）</td></tr>
+<tr><td>commit 大小</td><td>一個邏輯變更一個 commit；訊息說明「為什麼」</td></tr>
+<tr><td>合併方式</td><td>小團隊常用 squash merge，歷史乾淨；依團隊慣例</td></tr>
+<tr><td>版本標記</td><td><code>git tag v1.2.0 &amp;&amp; git push --tags</code>，遵循語意化版本（主.次.修）</td></tr>
+</tbody></table></div>
+
+<!-- ===================================================== 8 -->
+<h2 id="claudemd">8. CLAUDE.md：讓規則永久生效</h2>
+<p><code>CLAUDE.md</code> 是放在專案根目錄、每次對話都會自動讀取的說明檔。把「你不想每次重複交代的事」寫進去：</p>
+<div class="cards">
+  <div class="card"><h4>寫什麼</h4><p>如何建置／測試／執行、程式風格、禁止事項、重要設計決策與原因、容易踩的坑。</p></div>
+  <div class="card"><h4>不要寫什麼</h4><p>顯而易見的事、過長的流水帳、會過期的細節（改放 README 或程式註解）、機密。</p></div>
+  <div class="card"><h4>怎麼維護</h4><p>Claude 反覆犯同一個錯 → 補一條規則。規則變了 → 更新它。像程式碼一樣走 PR。</p></div>
+</div>
+
+<h3>8.1 通用範本（複製後依專案修改）</h3>
+<pre><button class="copy" type="button">複製</button><code># &lt;專案名稱&gt; — 給 Claude 的專案規則
+
+## 這個專案是什麼
+&lt;一兩句話：用途、主要使用者、技術棧&gt;
+
+## 常用指令
+- 安裝相依：&lt;指令&gt;
+- 執行：&lt;指令&gt;
+- 全部測試：&lt;指令&gt;            # 改完程式一定要跑
+- 靜態檢查／格式化：&lt;指令&gt;
+
+## 程式風格
+- &lt;語言版本與限制，例如：Python 3.11、不使用 X 語法&gt;
+- &lt;命名、目錄結構慣例&gt;
+- 檔案編碼／換行：&lt;例如 UTF-8、LF；PowerShell 腳本需 UTF-8 with BOM&gt;
+
+## 不可違反的規則（硬性）
+- 不得提交機密（金鑰、密碼、token）。
+- 不得刪除或弱化既有測試來讓它通過。
+- &lt;專案特有，例如：稽核腳本必須唯讀；資料庫遷移必須可回滾&gt;
+- 破壞性操作（刪檔、drop、force push）必須先停下來問我。
+
+## 工作方式
+- 新功能與重構：先用 Plan 模式提出計畫，等我核准。
+- 改完先跑測試，結束時回報：改了什麼、測試結果、沒驗證到的部分。
+- 一個 PR 只做一件事；commit 訊息用 feat:/fix:/docs:/test:/refactor:/chore: 前綴。
+
+## 架構重點
+- &lt;主要模組與職責，一行一個&gt;
+- &lt;資料流或關鍵設計決策與原因&gt;
+
+## 已知地雷
+- &lt;容易出錯的地方、過去踩過的坑&gt;</code></pre>
+
+<h3>8.2 Hook：需要「必定發生」時</h3>
+<p>CLAUDE.md 是「請求」，hook 是「強制」。例如：</p>
+<ul>
+  <li>每次寫入檔案後自動執行格式化或編碼檢查。</li>
+  <li>每次 Claude 嘗試執行含 <code>rm -rf</code>、<code>git push --force</code> 的指令時攔截。</li>
+  <li>每次結束對話前自動跑測試。</li>
+</ul>
+<p>設定方式：用 <code>/update-config</code> 描述你要的行為，由 Claude 協助寫入 settings.json，並請它先說明會改哪裡。</p>
+
+<!-- ===================================================== 9 -->
+<h2 id="prompts">9. 提示範本與好需求公式</h2>
+<div class="callout ok">
+  <b class="t">好需求公式</b>
+  <b>目標</b>（要達成什麼）＋ <b>範圍</b>（改哪些、不改哪些）＋ <b>驗收</b>（怎樣算完成）＋ <b>限制</b>（不能怎樣做）＋ <b>回報</b>（要求它說明未驗證處）。
+</div>
+
+<div class="tw"><table>
+<thead><tr><th>情境</th><th>範本（點「複製」使用）</th></tr></thead>
+<tbody>
+<tr><td>新功能</td><td><pre><button class="copy" type="button">複製</button><code>用 Plan 模式：新增 &lt;功能&gt;。
+先列出會動到的檔案、風險、測試計畫，等我核准再動手。</code></pre></td></tr>
+<tr><td>修 bug</td><td><pre><button class="copy" type="button">複製</button><code>先重現這個問題：&lt;描述/錯誤訊息&gt;。
+寫一個會失敗的測試，再修到通過，並跑全部測試。
+說明根因，而不只是症狀。</code></pre></td></tr>
+<tr><td>重構</td><td><pre><button class="copy" type="button">複製</button><code>不改外部行為，重構 &lt;模組&gt;。
+先確認現有測試涵蓋；小步進行，每步跑測試；不要夾帶新功能。</code></pre></td></tr>
+<tr><td>動敏感邏輯</td><td><pre><button class="copy" type="button">複製</button><code>這次只改 &lt;預覽/輸出/文字&gt;，不得動 &lt;刪除/寫入/權限&gt; 的路徑。
+改完執行 /security-review，並列出任何放寬限制的地方。</code></pre></td></tr>
+<tr><td>提交前自檢</td><td><pre><button class="copy" type="button">複製</button><code>看 git diff，逐檔說明變更。
+列出：沒驗證到的地方、做了哪些假設、有沒有動到我沒要求的檔案。</code></pre></td></tr>
+<tr><td>接手專案</td><td><pre><button class="copy" type="button">複製</button><code>先只讀不改。讀 README 與主要入口，
+用 5 句話說明資料流，指出最容易壞的 3 個地方，並建議 CLAUDE.md 該寫什麼。</code></pre></td></tr>
+<tr><td>不確定時</td><td><pre><button class="copy" type="button">複製</button><code>先別動手。告訴我你打算改哪些檔、為什麼、有哪些替代方案與取捨。</code></pre></td></tr>
+<tr><td>寫／改文件</td><td><pre><button class="copy" type="button">複製</button><code>依目前程式碼更新 &lt;章節&gt;，只改這一段，其他不要動。
+不確定的地方標註「待確認」，不要猜。</code></pre></td></tr>
+<tr><td>CI 失敗</td><td><pre><button class="copy" type="button">複製</button><code>讀這次 CI 失敗的記錄，找出根因並修正。
+不要用跳過測試或放寬斷言的方式讓它通過。</code></pre></td></tr>
+<tr><td>事故回顧</td><td><pre><button class="copy" type="button">複製</button><code>根據這次事故整理：時間線、根因、影響、已做與待做的改善，
+並建議要補哪些測試與 CLAUDE.md 規則。</code></pre></td></tr>
+</tbody></table></div>
+
+<!-- ===================================================== 10 -->
+<h2 id="guardrails">10. 護欄與風險管理</h2>
+<div class="cards">
+  <div class="card"><h4>🔐 機密</h4><p>金鑰、密碼、客戶資料不貼進對話、不進 commit。已洩漏就視為外洩並輪換。</p></div>
+  <div class="card"><h4>🧯 破壞性動作</h4><p>刪檔、drop table、force push、改正式環境：先預覽，再由你逐項核准。</p></div>
+  <div class="card"><h4>🔎 驗證</h4><p>命令與路徑先看過再執行，尤其帶 <code>--force</code>、<code>-Execute</code>、<code>--yes</code> 的。</p></div>
+  <div class="card"><h4>🪪 權限</h4><p>預設每次詢問。只對確定安全的唯讀指令放寬；自動核准模式只用在隔離或可丟棄的環境。</p></div>
+  <div class="card"><h4>💰 成本</h4><p><code>ultra</code>、<code>max</code> 等深度審查較貴，大改動才用，平常 <code>high</code>。</p></div>
+  <div class="card"><h4>📜 責任</h4><p>Claude 是工具，commit 是你的名字。核准前讀過 diff。</p></div>
+</div>
+
+<h3>10.1 分級核准建議</h3>
+<div class="tw"><table>
+<thead><tr><th>動作類型</th><th>例子</th><th>建議</th></tr></thead>
+<tbody>
+<tr><td class="risk-low"><b>唯讀</b></td><td>讀檔、搜尋、<code>git status/diff/log</code>、跑測試</td><td>可預先允許</td></tr>
+<tr><td class="risk-mid"><b>本機可還原</b></td><td>改檔、本機 commit、建分支</td><td>在 git 保護下可放寬；看 diff</td></tr>
+<tr><td class="risk-high"><b>外部／不可逆</b></td><td>push、merge、發版、刪資料、改雲端資源、寄信</td><td><b>每次都要你核准</b></td></tr>
+</tbody></table></div>
+
+<h3>10.2 常見反模式</h3>
+<div class="tw"><table>
+<thead><tr><th>反模式</th><th>後果</th><th>改成</th></tr></thead>
+<tbody>
+<tr><td>沒 commit 就叫它大改</td><td>看不出改了什麼、難以還原</td><td>先 commit，開分支</td></tr>
+<tr><td>需求只有一句「幫我優化」</td><td>範圍失控、改一堆不相干的東西</td><td>用「好需求公式」</td></tr>
+<tr><td>一個 PR 塞十件事</td><td>無法審查、無法回滾</td><td>一事一 PR</td></tr>
+<tr><td>只看「測試通過」</td><td>測試可能根本沒涵蓋</td><td>追問涵蓋範圍與未驗證項</td></tr>
+<tr><td>為了通過 CI 跳過測試</td><td>把問題藏起來</td><td>要求修根因</td></tr>
+<tr><td>規則只用口頭說</td><td>下次忘記</td><td>寫進 CLAUDE.md；必定發生的用 hook／CI</td></tr>
+<tr><td>全盤信任審查結果</td><td>誤報浪費時間、漏報有風險</td><td>Triage；關鍵處人工複核</td></tr>
+<tr><td>把機密貼進對話求助</td><td>外洩風險</td><td>遮罩後再貼，或用環境變數</td></tr>
+</tbody></table></div>
+
+<!-- ===================================================== 11 -->
+<h2 id="adapt">11. 依專案類型調整</h2>
+<div class="tw"><table>
+<thead><tr><th>專案類型</th><th>CLAUDE.md 要寫</th><th>審查重點</th><th>特別小心</th></tr></thead>
+<tbody>
+<tr><td><b>前端 / Web</b></td><td>建置與 lint 指令、元件慣例、瀏覽器支援</td><td>無障礙、XSS、效能</td><td>別引入不必要套件；視覺改動要人工看畫面</td></tr>
+<tr><td><b>後端 / API</b></td><td>啟動與測試指令、分層與錯誤處理慣例</td><td>輸入驗證、授權、SQL 注入、競態</td><td>資料庫遷移要可回滾；不碰正式環境</td></tr>
+<tr><td><b>行動 App</b></td><td>建置目標、簽章流程（不含金鑰）</td><td>權限、儲存、網路</td><td>發版流程與審核時程</td></tr>
+<tr><td><b>資料／分析</b></td><td>資料來源、可重現步驟、資料字典</td><td>資料洩漏、計算正確性</td><td>預設 dry-run；不覆寫原始資料</td></tr>
+<tr><td><b>維運腳本 / 工具</b></td><td>唯讀 vs 寫入的界線、黑名單、確認閘門</td><td>誤刪、權限、路徑處理</td><td>預覽優先；動手前確認範圍</td></tr>
+<tr><td><b>基礎設施 (IaC)</b></td><td>環境命名、plan/apply 流程</td><td>IAM、網路、成本</td><td>只讓它產生 plan；apply 由你執行</td></tr>
+</tbody></table></div>
+
+<!-- ===================================================== 12 -->
+<h2 id="release">12. 發版檢查清單</h2>
+<div class="progress"><i id="p-release"></i></div>
+<div id="ck-release" class="checklist" data-key="release">
+  <div class="check"><input type="checkbox" id="r1"><label for="r1">全部測試通過（本機與 CI）</label></div>
+  <div class="check"><input type="checkbox" id="r2"><label for="r2">在真實／近似真實環境做過一次冒煙測試（<code>/run</code> 或手動）</label></div>
+  <div class="check"><input type="checkbox" id="r3"><label for="r3"><code>/code-review</code> 完成，阻擋級發現已處理</label></div>
+  <div class="check"><input type="checkbox" id="r4"><label for="r4">動到敏感區域已跑 <code>/security-review</code></label></div>
+  <div class="check"><input type="checkbox" id="r5"><label for="r5">沒有機密、除錯用程式、暫時性硬編碼被提交</label></div>
+  <div class="check"><input type="checkbox" id="r6"><label for="r6">相依套件變更已檢視（來源、授權、版本）</label></div>
+  <div class="check"><input type="checkbox" id="r7"><label for="r7">版本號、CHANGELOG、README 已更新</label></div>
+  <div class="check"><input type="checkbox" id="r8"><label for="r8">回滾方式明確（<code>git revert</code>、資料遷移的反向步驟）</label></div>
+  <div class="check"><input type="checkbox" id="r9"><label for="r9">已知限制與未驗證項目已寫進發版說明</label></div>
+  <div class="check"><input type="checkbox" id="r10"><label for="r10">打 tag 並推送：<code>git tag vX.Y.Z &amp;&amp; git push --tags</code></label></div>
+</div>
+<p><button type="button" data-reset="release">重設此清單</button></p>
+
+<!-- ===================================================== 13 -->
+<h2 id="faq">13. 常見問題</h2>
+<details><summary>Claude 改壞了怎麼辦？</summary>
+<p><code>git diff</code> 檢視；<code>git restore &lt;檔案&gt;</code> 還原單檔；<code>git revert &lt;commit&gt;</code> 還原已提交的變更。這就是要先 commit 的原因。</p></details>
+<details><summary>可以直接說「全部幫我處理好」嗎？</summary>
+<p>小事可以；大事先 Plan。越模糊的需求，越需要你驗收與拆小。</p></details>
+<details><summary>審查抓到很多項目，都要修嗎？</summary>
+<p>不必。依嚴重度排序，高信心的正確性與安全問題先修，其餘記錄成 issue 或接受風險並寫理由。</p></details>
+<details><summary>它說「測試通過」我就能放心嗎？</summary>
+<p>要看測試涵蓋什麼。請它列出「測試未涵蓋」的清單，並對這些部分手動驗證。</p></details>
+<details><summary>能讓它自動 merge 嗎？</summary>
+<p>不建議。預設不會，需你明確要求；合併是發版前最後一道人工關卡。</p></details>
+<details><summary>多人團隊怎麼讓大家遵守同樣規則？</summary>
+<p>把規則寫進 <code>CLAUDE.md</code> 並 commit；必須每次發生的檢查用 hook 與 CI；分支保護要求 PR 與 CI 通過。</p></details>
+<details><summary>同時做兩件事會互相影響嗎？</summary>
+<p>會，如果在同一個工作目錄。請用不同分支，或並行 session／worktree，讓各自有獨立目錄。</p></details>
+<details><summary>怎麼讓 Claude 越用越懂我的專案？</summary>
+<p>把反覆糾正的事寫進 CLAUDE.md；把重複的流程做成自己的 skill；保持 README 與 docs 更新。</p></details>
+
+<!-- ===================================================== 14 -->
+<h2 id="glossary">14. 名詞表</h2>
+<div class="tw"><table>
+<thead><tr><th>名詞</th><th>說明</th></tr></thead>
+<tbody>
+<tr><td>Plan 模式</td><td>Claude 只讀取與規劃、不修改檔案，等你核准後才實作</td></tr>
+<tr><td>CLAUDE.md</td><td>專案根目錄的說明檔，每次對話自動載入，用來放專案規則</td></tr>
+<tr><td>Skill</td><td>可重複使用的工作流程或能力包，用 <code>/名稱</code> 觸發</td></tr>
+<tr><td>Hook</td><td>在特定事件（如寫檔後、執行指令前）由系統強制執行的動作</td></tr>
+<tr><td>PR (Pull Request)</td><td>請求把某分支的變更合併進主分支，並供審查與 CI 檢查</td></tr>
+<tr><td>CI</td><td>持續整合：每次推送／PR 自動建置與測試</td></tr>
+<tr><td>Auto-fix</td><td>PR 出現 CI 失敗、衝突或審查留言時，自動交給 Claude 處理</td></tr>
+<tr><td>Worktree</td><td>同一個 repo 的多個獨立工作目錄，各自可在不同分支</td></tr>
+<tr><td>Dry-run / 預覽</td><td>只顯示會做什麼，不真的執行</td></tr>
+<tr><td>回歸測試</td><td>為已修好的 bug 補的測試，防止它再次發生</td></tr>
+<tr><td>冒煙測試</td><td>用最少步驟確認系統基本功能能運作</td></tr>
+<tr><td>語意化版本</td><td>版本號 主.次.修：不相容改動升主版、新功能升次版、修 bug 升修訂版</td></tr>
+</tbody></table></div>
+
+<footer>
+  <p>本指南為通用版，可複製到任何專案的 <code>docs/</code> 使用；專案特有規則請放在該專案的 CLAUDE.md 與 README。
+  指令名稱與選項以你實際環境為準（輸入 <code>/</code> 查看目前可用者）。</p>
+  <p>一頁總結：<b>先 commit → Plan → 小步實作＋測試 → 審查三件套 → 你看 diff → PR＋CI → 你核准合併。</b></p>
+</footer>
+</main>
+</div>
+
+<script>
+(function () {
+  // ---------- safe storage ----------
+  function sget(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
+  function sset(k, v) { try { window.localStorage.setItem(k, v); } catch (e) {} }
+
+  // ---------- theme ----------
+  var root = document.documentElement;
+  var savedTheme = sget('cwg-theme');
+  if (savedTheme === 'light' || savedTheme === 'dark') root.setAttribute('data-theme', savedTheme);
+  document.getElementById('themeBtn').addEventListener('click', function () {
+    var cur = root.getAttribute('data-theme');
+    var dark = cur === 'dark' || (cur === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    var next = dark ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    sset('cwg-theme', next);
+  });
+
+  // ---------- table of contents ----------
+  var toc = document.getElementById('toc');
+  var heads = document.querySelectorAll('main h2');
+  heads.forEach(function (h) {
+    var a = document.createElement('a');
+    a.href = '#' + h.id; a.textContent = h.textContent;
+    toc.appendChild(a);
+  });
+  if ('IntersectionObserver' in window) {
+    var links = toc.querySelectorAll('a');
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting) {
+          links.forEach(function (l) { l.classList.toggle('on', l.getAttribute('href') === '#' + en.target.id); });
+        }
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    heads.forEach(function (h) { io.observe(h); });
+  }
+
+  // ---------- copy buttons ----------
+  document.querySelectorAll('pre button.copy').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var code = btn.parentElement.querySelector('code');
+      var text = code ? code.innerText : '';
+      function done() { var o = btn.textContent; btn.textContent = '已複製'; setTimeout(function () { btn.textContent = o; }, 1200); }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, fallback);
+      } else { fallback(); }
+      function fallback() {
+        try {
+          var ta = document.createElement('textarea');
+          ta.value = text; document.body.appendChild(ta); ta.select();
+          document.execCommand('copy'); document.body.removeChild(ta); done();
+        } catch (e) { btn.textContent = '請手動複製'; }
+      }
+    });
+  });
+
+  // ---------- skill search ----------
+  var search = document.getElementById('skillSearch');
+  if (search) {
+    search.addEventListener('input', function () {
+      var q = search.value.trim().toLowerCase();
+      document.querySelectorAll('#skillTable tbody tr').forEach(function (tr) {
+        tr.style.display = (!q || tr.innerText.toLowerCase().indexOf(q) !== -1) ? '' : 'none';
+      });
+    });
+  }
+
+  // ---------- checklists (persisted per-browser; safe if storage is blocked) ----------
+  document.querySelectorAll('.checklist').forEach(function (list) {
+    var key = 'cwg-ck-' + list.getAttribute('data-key');
+    var boxes = list.querySelectorAll('input[type=checkbox]');
+    var bar = document.getElementById('p-' + list.getAttribute('data-key'));
+    var saved = {};
+    try { saved = JSON.parse(sget(key) || '{}') || {}; } catch (e) { saved = {}; }
+    function refresh() {
+      var n = 0;
+      boxes.forEach(function (b) {
+        if (b.checked) n++;
+        b.closest('.check').classList.toggle('done', b.checked);
+      });
+      if (bar) bar.style.width = (boxes.length ? Math.round(100 * n / boxes.length) : 0) + '%';
+    }
+    boxes.forEach(function (b) {
+      if (saved[b.id]) b.checked = true;
+      b.addEventListener('change', function () {
+        var s = {};
+        boxes.forEach(function (x) { if (x.checked) s[x.id] = 1; });
+        sset(key, JSON.stringify(s)); refresh();
+      });
+    });
+    refresh();
+  });
+  document.querySelectorAll('button[data-reset]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var list = document.getElementById('ck-' + btn.getAttribute('data-reset'));
+      list.querySelectorAll('input[type=checkbox]').forEach(function (b) { b.checked = false; });
+      sset('cwg-ck-' + btn.getAttribute('data-reset'), '{}');
+      list.querySelector('input').dispatchEvent(new Event('change'));
+    });
+  });
+})();
+</script>
+</body>
+</html>
