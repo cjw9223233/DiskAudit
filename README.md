@@ -235,10 +235,13 @@ D:\Tools\DiskAudit\
 ├─ known-targets.json       規則庫（Safe / Review / Manual），可自行增修
 ├─ PLAN_REVIEW.md           保守分級的依據（原版對計畫的檢視結論）
 ├─ README.md                本文件
+├─ CLAUDE.md                給 Claude 的專案規則（硬性規則、編碼約束、指令；每次對話自動載入）
+├─ .github\workflows\test.yml   CI：每個 PR / push 自動跑靜態檢查與測試（windows-latest）
 ├─ docs\
 │   ├─ CLAUDE-WORKFLOW.md   用 Claude 協作開發：流程、skill、PR / Code Review、護欄（本專案版）
 │   └─ claude-dev-workflow-guide.html   同主題的「通用版」互動教學（可複製到任何專案，雙擊開啟）
 ├─ tests\
+│   ├─ Check-Static.ps1     快速靜態檢查（BOM／語法／C# 編譯／規則庫），本機與 CI 共用
 │   ├─ Run-Tests.ps1        自動化測試（不需 Pester）
 │   └─ New-Fixture.ps1      建立可丟棄的測試資料夾與預期值
 └─ reports\                 每次稽核一個資料夾；cleanup-log.csv 也在這
@@ -404,6 +407,7 @@ Invoke-DiskCleanup.ps1 ──dot-source──► DiskAudit.Common.ps1
 ### 6.5 測試
 
 ```powershell
+.\tests\Check-Static.ps1                  # 數秒：BOM、語法、C# 編譯、規則庫驗證（提交前先跑）
 .\tests\Run-Tests.ps1                     # 約 1–2 分鐘，結果 N 通過 / M 失敗
 .\tests\Run-Tests.ps1 -KeepWork           # 失敗時保留 fixture 以便檢查
 .\tests\Run-Tests.ps1 -WorkDir E:\tmp     # 改測試暫存位置（需約 200MB）
@@ -439,7 +443,7 @@ Get-ChildItem -Recurse -Include *.ps1 | Where-Object { $_.FullName -notmatch '\\
 
 ### 6.7 發版前檢查清單
 
-- [ ] `.\tests\Run-Tests.ps1` 全數通過
+- [ ] `.\tests\Check-Static.ps1` 與 `.\tests\Run-Tests.ps1` 全數通過（CI 也會自動跑）
 - [ ] 對真實 C 槽跑一次稽核（`-NoOpen`），報表正常、無未處理例外
 - [ ] 稽核腳本沒有新增任何寫入被掃描路徑的指令
 - [ ] 新增/修改的規則：預設 Review 或 Manual，並已有說明與建議指令

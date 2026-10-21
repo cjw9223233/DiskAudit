@@ -196,7 +196,7 @@ commit → push → 開 PR → 等 CI → 你核准 → merge
 ## 9. 後續待辦（建議順序）
 
 1. ~~補 `.gitignore`~~（已完成：`reports/`、`tests/_work/` 已排除）。
-2. 用 `/init` 產生並審閱 `CLAUDE.md`。
+2. ~~用 `/init` 產生並審閱 `CLAUDE.md`~~（已完成：見根目錄 `CLAUDE.md`）。
 3. 建立 GitHub private repo 並推送。
-4. 新增 GitHub Actions 跑測試。
+4. ~~新增 GitHub Actions 跑測試~~（已完成：`.github/workflows/test.yml`，首次在 CI 執行需觀察結果）。
 5. 第一個 PR 走完整流程（含 `/code-review`、`/security-review`）。

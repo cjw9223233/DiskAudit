@@ -1,0 +1,30 @@
+name: test
+
+on:
+  pull_request:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    # 專案以 Windows PowerShell 5.1 為準；windows-latest 內建該版本（shell: powershell）
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Static checks (BOM / syntax / C# compile / rules)
+        shell: powershell
+        run: .\tests\Check-Static.ps1
+
+      - name: Run tests
+        shell: powershell
+        run: .\tests\Run-Tests.ps1
