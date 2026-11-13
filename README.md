@@ -92,7 +92,10 @@ Get-Volume -DriveLetter C | Select-Object DriveLetter,
 | 同時分析 WinSxS 真實大小（管理員，約 1–2 分鐘） | `.\Invoke-DiskAudit.ps1 -WinSxS` |
 
 > 提示：`-Root` 的多個路徑**不可互相包含**（例如 `C:\` 與 `C:\Users` 不能一起給）。
-> 報表不可輸出到被掃描的範圍內（預設輸出到工具資料夾的 `reports\`，所以掃 `D:\` 時請用 `-OutDir` 指到別處）。
+> 報表不可輸出到被掃描的範圍內（預設輸出到工具資料夾的 `reports\`，所以工具放在 `D:\` 時掃 `D:\` 會被擋下）。
+> 被擋下時，錯誤訊息會**附上可直接複製的建議指令**，例如：
+> `.\Invoke-DiskAudit.ps1 -Root D:\ -OutDir C:\DiskAuditReports`（會保留你原本的其他參數，只換掉 `-OutDir`）。
+> 報表一份約數 MB，放在別的磁碟即可。
 
 ### Step 3：看報表
 
@@ -318,7 +321,7 @@ D:\Tools\DiskAudit\
 | 報表上很多項目「無法讀取」 | 沒用系統管理員執行；改用管理員 PowerShell 重跑 |
 | 中文亂碼 | 腳本必須是 **UTF-8 with BOM**（見維護者指南）；CSV 用 Excel 開即可 |
 | 掃描很久 | SSD 數分鐘、HDD 可 20 分鐘以上；加 `-SkipDupes` 或 `-MaxMinutes 10` |
-| 「報表位置不可位於掃描根目錄內」 | `-OutDir` 指到被掃描範圍外（例如掃 `D:\` 就輸出到 `C:` 或 `E:`） |
+| 「報表位置不可位於掃描根目錄內」 | 直接複製錯誤訊息中「建議改用」那一行指令執行（例如 `-OutDir C:\DiskAuditReports`）；也可自行把 `-OutDir` 指到被掃描範圍外。若訊息說找不到範圍外位置，代表你掃了所有磁碟，請改掃單一磁碟或資料夾 |
 | 「掃描根目錄不可互相包含」 | `-Root` 只給最上層，或分開跑 |
 | 清理後可用空間沒變 | 資源回收筒沒清空；或估計值本來就偏高；或檔案被鎖定而略過（看 `cleanup-log.csv`） |
 | Review 層按了 `-Execute` 什麼都沒做 | 需再加 `-AllowReview`；且非互動視窗/逾時一律視為「否」 |
