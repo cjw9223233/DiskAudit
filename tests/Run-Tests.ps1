@@ -171,6 +171,67 @@ try {
     Assert-That '-Root 互相包含 → 拒絕' $threw
 
     # ------------------------------------------------------------------ 前後比較
+    # ------------------------------------------------------------------ DISM 元件存放區輸出解析
+    Write-Host "`n== T-WinSxS：DISM AnalyzeComponentStore 輸出解析 ==" -ForegroundColor Cyan
+    $dismEn = @'
+Deployment Image Servicing and Management tool
+Version: 10.0.26100.5074
+
+Image Version: 10.0.26200.1
+
+[==========================100.0%==========================]
+
+Component Store (WinSxS) information:
+
+Windows Explorer Reported Size of Component Store : 24.03 GB
+
+Actual Size of Component Store : 12.80 GB
+
+    Shared with Windows : 11.00 GB
+    Backups and Disabled Features : 1.70 GB
+    Cache and Temporary Data : 98.00 MB
+
+Date of Last Cleanup : 2026-11-09 08:39:02
+
+Number of Reclaimable Packages : 3
+Component Store Cleanup Recommended : Yes
+
+The operation completed successfully.
+'@
+    $dismZh = @'
+部署映像服務及管理工具
+版本: 10.0.26100.5074
+
+映像版本: 10.0.26200.1
+
+[==========================100.0%==========================]
+
+元件存放區 (WinSxS) 資訊:
+
+Windows 檔案總管回報的元件存放區大小 : 24.03 GB
+
+元件存放區的實際大小 : 12.80 GB
+
+    與 Windows 共用 : 11.00 GB
+    備份和停用的功能 : 1.70 GB
+    快取和暫存資料 : 98.00 MB
+
+上次清理日期 : 2026-11-09 08:39:02
+
+可回收封裝數目 : 3
+建議清理元件存放區 : 是
+
+作業順利完成。
+'@
+    $enInfo = @(); $zhInfo = @(); $noHeaderOk = $false
+    try { $enInfo = @(Select-ComponentStoreInfo -Lines ($dismEn -split "`r?`n")) } catch { }
+    try { $zhInfo = @(Select-ComponentStoreInfo -Lines ($dismZh -split "`r?`n")) } catch { }
+    try { $noHeaderOk = (@(Select-ComponentStoreInfo -Lines @('Error: 740', '需要提升權限')).Count -eq 0) } catch { }
+    Assert-That '英文輸出：保留 8 行資訊（含備份與停用功能、快取、可回收套件數、建議清理）' ($enInfo.Count -eq 8 -and ($enInfo -join "`n") -match 'Backups and Disabled Features' -and ($enInfo -join "`n") -match 'Cache and Temporary Data' -and ($enInfo -join "`n") -match 'Reclaimable Packages' -and ($enInfo -join "`n") -match 'Cleanup Recommended') ($enInfo -join ' | ')
+    Assert-That '中文輸出：保留 8 行資訊（含備份、快取、可回收、建議清理）' ($zhInfo.Count -eq 8 -and ($zhInfo -join "`n") -match '備份' -and ($zhInfo -join "`n") -match '快取' -and ($zhInfo -join "`n") -match '可回收' -and ($zhInfo -join "`n") -match '建議清理') ($zhInfo -join ' | ')
+    Assert-That '解析結果不含工具名稱、版本、進度列與結尾訊息（且確實有解析出內容）' (($enInfo.Count + $zhInfo.Count) -gt 0 -and -not ((($enInfo + $zhInfo) -join "`n") -match 'Deployment Image|Version:|版本|\[=+|completed|順利完成|部署映像'))
+    Assert-That '找不到「元件存放區」標頭時回傳空陣列（由呼叫端附上原文）' $noHeaderOk
+
     Write-Host "`n== T-Compare：與上次比較 ==" -ForegroundColor Cyan
     $buf = New-Object byte[] (30MB); [IO.File]::WriteAllBytes((Join-Path $fx 'grow_big.bin'), $buf)
     $res2 = @(& $audit -Root $fx -OutDir $reports -Depth 4 -Top 50 -MinFileMB 10 -RulesPath $m.RulesPath -NoOpen -SkipDupes -Threads 4 6>$null)[-1]
@@ -188,6 +249,31 @@ try {
     $planCsv = Get-ChildItem $logDir -Recurse -Filter cleanup-plan.csv | Select-Object -First 1
     $plan = if ($planCsv) { Import-Csv $planCsv.FullName -Encoding UTF8 } else { @() }
     Assert-That '預覽計畫列出 t-temp 且預估 4MB' ([bool]($plan | Where-Object { $_.RuleId -eq 't-temp' -and [int64]$_.Bytes -eq 4MB }))
+
+    # 規則帶 measure:none 的 Command 型項目（如 WinSxS）：預覽不得把路徑大小當成「預估釋放量」
+    $rulesNone = Join-Path $WorkDir 'rules-measure-none.json'
+    @{ version = 'test'; rules = @(
+            @{ id = 'tc-none'; risk = 'Review'; category = 'x'; path = "$fx\fake\Minidump"; note = 'measure none'; action = 'n/a'; measure = 'none'; clean = @{ type = 'Command'; command = 'Clear-RecycleBin -DriveLetter Z -Force' } },
+            @{ id = 'tc-known'; risk = 'Review'; category = 'x'; path = "$fx\fake\Minidump"; note = 'measured'; action = 'n/a'; clean = @{ type = 'Command'; command = 'Clear-RecycleBin -DriveLetter Z -Force' } }
+        )
+    } | ConvertTo-Json -Depth 6 | Out-File -LiteralPath $rulesNone -Encoding UTF8
+    $logDirNone = Join-Path $WorkDir 'cleanup-logs-none'
+    $previewOut = & $cleanup -Mode Rules -Tier Review -RulesPath $rulesNone -LogDir $logDirNone 6>&1 | Out-String
+    $planNoneCsv = Get-ChildItem $logDirNone -Recurse -Filter cleanup-plan.csv -ErrorAction SilentlyContinue | Select-Object -First 1
+    $planNone = if ($planNoneCsv) { Import-Csv $planNoneCsv.FullName -Encoding UTF8 } else { @() }
+    Assert-That 'measure:none 的 Command 規則預估釋放量為 0' ([int64](@($planNone | Where-Object { $_.RuleId -eq 'tc-none' })[0].Bytes) -eq 0) $previewOut
+    Assert-That '一般 Command 規則仍量測路徑（5MB）' ([int64](@($planNone | Where-Object { $_.RuleId -eq 'tc-known' })[0].Bytes) -eq 5MB)
+    Assert-That '預覽對 measure:none 顯示「無法預估」，合計只含可預估項目（5.00 MB）' ($previewOut -match '無法預估' -and $previewOut -match '合計預估釋放約 5\.00 MB') $previewOut
+
+    # 邊界：計畫內「全部」項目都無法預估（真實的 WinSxS 規則就是這種情況）→ 不可當掉，合計為 0
+    $rulesAllNone = Join-Path $WorkDir 'rules-all-none.json'
+    @{ version = 'test'; rules = @(
+            @{ id = 'tc-none-only'; risk = 'Review'; category = 'x'; path = "$fx\fake\Minidump"; note = 'measure none'; action = 'n/a'; measure = 'none'; clean = @{ type = 'Command'; command = 'Clear-RecycleBin -DriveLetter Z -Force' } }
+        )
+    } | ConvertTo-Json -Depth 6 | Out-File -LiteralPath $rulesAllNone -Encoding UTF8
+    $allNoneOut = ''; $allNoneErr = ''
+    try { $allNoneOut = & $cleanup -Mode Rules -Tier Review -RulesPath $rulesAllNone -LogDir (Join-Path $WorkDir 'cleanup-logs-allnone') 6>&1 | Out-String } catch { $allNoneErr = $_.Exception.Message }
+    Assert-That '全部項目都無法預估時預覽不當掉，且合計為 0 B' (-not $allNoneErr -and $allNoneOut -match '無法預估' -and $allNoneOut -match '合計預估釋放約 0 B') ($allNoneErr + ' ' + $allNoneOut)
 
     & $cleanup -Mode Rules -Tier Safe -RulesPath $m.RulesPath -LogDir $logDir -WhatIf 6>$null | Out-Null
     $snapW = Get-TreeSnapshot $fx @($deniedDir)

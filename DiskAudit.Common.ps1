@@ -185,3 +185,21 @@ function Format-CmdArg {
     if ($Value -match '\s') { return '"' + $Value + '"' }
     return $Value
 }
+
+function Select-ComponentStoreInfo {
+    # 從 DISM /AnalyzeComponentStore 的輸出取出「元件存放區 (WinSxS)」資訊區段（不分語系）。
+    # 標頭之後所有「鍵 : 值」行都保留（含備份與停用功能、快取與暫存資料、可回收套件數、建議清理）；
+    # 工具名稱、版本、進度列與結尾訊息不保留。找不到標頭時回傳空陣列，由呼叫端決定如何處理（例如附上原文）。
+    param([Parameter(Mandatory)][AllowEmptyString()][string[]]$Lines)
+    $start = -1
+    for ($i = 0; $i -lt $Lines.Count; $i++) {
+        if ($Lines[$i] -match '\(WinSxS\)' -and $Lines[$i] -match '(?i)component store|元件存放區') { $start = $i; break }
+    }
+    if ($start -lt 0) { return @() }
+    $out = New-Object System.Collections.Generic.List[string]
+    for ($i = $start + 1; $i -lt $Lines.Count; $i++) {
+        $t = $Lines[$i].Trim()
+        if ($t -and $t -match '\s:\s|：') { $out.Add($t) }
+    }
+    return $out.ToArray()
+}

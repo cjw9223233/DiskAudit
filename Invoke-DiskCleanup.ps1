@@ -155,13 +155,19 @@ foreach ($rule in $ruleSet.Rules) {
         foreach ($rx in $allowedCommands) { if ($cmd -match $rx) { $ok = $true; break } }
         if (-not $ok) { Write-Warning "規則 $($rule.id) 的指令不在允許清單，已略過: $cmd"; continue }
         $keyword = if ($cleanProps -contains 'confirmKeyword') { [string]$rule.clean.confirmKeyword } else { '' }
-        # 指令型規則：預估大小取其路徑現況（僅供參考）
+        # 指令型規則：預估大小取其路徑現況（僅供參考）。
+        # 規則帶 "measure": "none"（如 WinSxS：路徑大小含硬連結，與實際可釋放量無關）時不預估，
+        # Bytes 記 0、預覽顯示「無法預估」，且不計入合計。
+        $measureNone = ($rule.PSObject.Properties.Name -contains 'measure') -and $rule.measure -eq 'none'
         $est = 0L
-        foreach ($p in (Expand-RulePath $rule.path)) {
-            try { $m = [DiskAudit.DiskScanner]::Measure($p, 0, $null, 2); $est += [int64]$m[0] } catch { }
+        if (-not $measureNone) {
+            foreach ($p in (Expand-RulePath $rule.path)) {
+                try { $m = [DiskAudit.DiskScanner]::Measure($p, 0, $null, 2); $est += [int64]$m[0] } catch { }
+            }
         }
         $plan.Add([pscustomobject]@{
                 RuleId = $rule.id; Risk = $rule.risk; Type = 'Command'; Path = $cmd; Bytes = $est; Files = 0
+                EstimateKnown = (-not $measureNone)
                 Note = $rule.note; Services = @(); Keyword = $keyword; Items = $null
             })
         continue
@@ -181,6 +187,7 @@ foreach ($rule in $ruleSet.Rules) {
             if ($item.LastWriteTime -lt $cutoff) {
                 $plan.Add([pscustomobject]@{
                         RuleId = $rule.id; Risk = $rule.risk; Type = 'DeleteFile'; Path = $p; Bytes = [int64]$item.Length; Files = 1
+                        EstimateKnown = $true
                         Note = $rule.note; Services = @(); Keyword = ''; Items = $null
                     })
             }
@@ -190,6 +197,7 @@ foreach ($rule in $ruleSet.Rules) {
         $bytes = [int64](($found.Files | Measure-Object Length -Sum).Sum)
         $plan.Add([pscustomobject]@{
                 RuleId = $rule.id; Risk = $rule.risk; Type = 'DeleteContents'; Path = $p; Bytes = $bytes; Files = $found.Files.Count
+                EstimateKnown = $true
                 Note = $rule.note; Services = $services; Keyword = ''; Items = $found
             })
     }
@@ -197,15 +205,21 @@ foreach ($rule in $ruleSet.Rules) {
 
 # --- 預覽輸出
 $planCsv = Join-Path $runDir 'cleanup-plan.csv'
-$plan | Select-Object RuleId, Risk, Type, Path, Bytes, Files, Note | Export-Csv -LiteralPath $planCsv -NoTypeInformation -Encoding UTF8
+$plan | Select-Object RuleId, Risk, Type, Path, Bytes, EstimateKnown, Files, Note | Export-Csv -LiteralPath $planCsv -NoTypeInformation -Encoding UTF8
 Write-Host ''
 Write-Host ("清理計畫（Tier={0}，{1}）" -f $Tier, $(if ($Execute) { '執行模式' } else { '預覽模式：不會變動任何檔案' })) -ForegroundColor Cyan
 if ($plan.Count -eq 0) { Write-Host '沒有符合的項目。'; return }
 $plan | ForEach-Object {
-    Write-Host ("  [{0}] {1,12}  {2,6} 檔  {3}" -f $_.RuleId, (Format-Size $_.Bytes), $_.Files, $_.Path)
+    $sizeText = if ($_.EstimateKnown) { Format-Size $_.Bytes } else { '無法預估' }
+    Write-Host ("  [{0}] {1,12}  {2,6} 檔  {3}" -f $_.RuleId, $sizeText, $_.Files, $_.Path)
 }
-$totalBytes = [int64](($plan | Measure-Object Bytes -Sum).Sum)
+$knownItems = @($plan | Where-Object { $_.EstimateKnown })
+$totalBytes = if ($knownItems.Count -gt 0) { [int64](($knownItems | Measure-Object Bytes -Sum).Sum) } else { 0L }   # 全部無法預估時 Measure-Object 沒有 Sum 屬性
 Write-Host ("合計預估釋放約 {0}（估計值；實際以清理後可用空間為準）。計畫檔: {1}" -f (Format-Size $totalBytes), $planCsv) -ForegroundColor Yellow
+$unknownCount = @($plan | Where-Object { -not $_.EstimateKnown }).Count
+if ($unknownCount -gt 0) {
+    Write-Host ("另有 {0} 項無法預估，未計入合計（例如 WinSxS：請先用 Dism.exe /Online /Cleanup-Image /AnalyzeComponentStore 或 Invoke-DiskAudit.ps1 -WinSxS 評估，以官方分析為準）。" -f $unknownCount) -ForegroundColor Yellow
+}
 
 if (-not $Execute) {
     Write-Host ''

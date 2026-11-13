@@ -90,7 +90,7 @@ Get-Volume -DriveLetter C | Select-Object DriveLetter,
 | 只掃某個資料夾 | `.\Invoke-DiskAudit.ps1 -Root D:\Downloads` |
 | 掃多個位置 | `.\Invoke-DiskAudit.ps1 -Root C:\,D:\Downloads` |
 | 限制最多跑 10 分鐘 | `.\Invoke-DiskAudit.ps1 -MaxMinutes 10` |
-| 同時分析 WinSxS 真實大小（管理員，約 1–2 分鐘） | `.\Invoke-DiskAudit.ps1 -WinSxS` |
+| 同時分析 WinSxS 真實大小（管理員，約 1–2 分鐘；報表附上完整 DISM 分析：實際大小、備份與停用功能、快取、可回收套件數、是否建議清理） | `.\Invoke-DiskAudit.ps1 -WinSxS` |
 
 > 提示：`-Root` 的多個路徑**不可互相包含**（例如 `C:\` 與 `C:\Users` 不能一起給）。
 > 報表不可輸出到被掃描的範圍內（預設輸出到工具資料夾的 `reports\`，所以工具放在 `D:\` 時掃 `D:\` 會被擋下）。
@@ -187,7 +187,7 @@ Review 等級包含：Windows Update 下載快取、WER 錯誤報告、CBS 記�
 | 休眠檔 hiberfil.sys | `C:\hiberfil.sys` | 不用休眠/快速啟動才關：`powercfg -h off`（復原：`powercfg -h on`） |
 | Windows.old | `C:\Windows.old` | 設定 → 系統 → 儲存空間 → 暫存檔案 → 勾「以前的 Windows 安裝」 |
 | 系統還原點 | （不在檔案列舉內） | `vssadmin list shadowstorage` 檢視，必要時調小上限 |
-| WinSxS | `C:\Windows\WinSxS` | **不可手動刪**；`DISM /Online /Cleanup-Image /AnalyzeComponentStore` 分析，`/StartComponentCleanup` 清理 |
+| WinSxS | `C:\Windows\WinSxS` | **不可手動刪**。先用 `Invoke-DiskAudit.ps1 -WinSxS`（或 `DISM /Online /Cleanup-Image /AnalyzeComponentStore`，管理員）分析：「額外負擔 ＝ 備份與停用功能 ＋ 快取與暫存資料」，且「建議清理＝是」或「可回收套件數 > 0」才值得清；清理用 `DISM /Online /Cleanup-Image /StartComponentCleanup`（**不加 `/ResetBase`**，否則現有更新無法解除安裝）。手動執行會**立即**移除被取代的舊元件（沒有排程工作的 30 天寬限），剛更新完建議先觀察幾天 |
 | Avast 沙箱 | `C:\avast! sandbox` | 由 Avast 介面清除，不要手動刪 |
 
 ---
@@ -295,7 +295,7 @@ D:\Tools\DiskAudit\
 | `-Threads` | 核心數（最多 8） | 掃描執行緒 |
 | `-MaxMinutes` | 0（不限） | 超時就停止並輸出部分結果 |
 | `-SkipDupes` | 否 | 略過重複檔比對 |
-| `-WinSxS` | 否 | 用 DISM 分析 WinSxS 真實大小（管理員） |
+| `-WinSxS` | 否 | 用 DISM 分析 WinSxS 真實大小（管理員）；完整分析輸出會放進報表與 `summary.json` 的 `ComponentStore` |
 | `-NoOpen` | 否 | 不自動開瀏覽器 |
 | `-RulesPath` | 腳本旁 JSON | 自訂規則庫 |
 
