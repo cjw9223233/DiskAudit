@@ -11,6 +11,7 @@
 | 出問題 / 看不懂錯誤 | [五、疑難排解](#五疑難排解) |
 | 要維護、修改、擴充專案 | [六、維護者指南](#六維護者指南進入專案維修) |
 | 想用 Claude 協助開發、做 PR / Code Review | [docs/CLAUDE-WORKFLOW.md](docs/CLAUDE-WORKFLOW.md)（本專案版）、[通用 HTML 教學](docs/claude-dev-workflow-guide.html) |
+| 開新對話／接手進度、記待辦 | 先讀 [handoff.md](handoff.md)，待辦看 [BACKLOG.md](BACKLOG.md)，用法見 [docs/文件分層使用指南.md](docs/文件分層使用指南.md) |
 
 ---
 
@@ -236,8 +237,11 @@ D:\Tools\DiskAudit\
 ├─ PLAN_REVIEW.md           保守分級的依據（原版對計畫的檢視結論）
 ├─ README.md                本文件
 ├─ CLAUDE.md                給 Claude 的專案規則（硬性規則、編碼約束、指令；每次對話自動載入）
+├─ handoff.md               當前階段快照；第一行是「回來第一個動作」，新對話先讀它（階段完成時覆寫）
+├─ BACKLOG.md               待辦／新想法／技術債，一行一條（P1／P2／P3），完成就刪
 ├─ .github\workflows\test.yml   CI：每個 PR / push 自動跑靜態檢查與測試（windows-latest）
 ├─ docs\
+│   ├─ 文件分層使用指南.md   規則／進度／待辦／記憶／歷史各放哪裡、什麼時候更新（CLAUDE.md、handoff.md、BACKLOG.md 的用法）
 │   ├─ CLAUDE-WORKFLOW.md   用 Claude 協作開發：流程、skill、PR / Code Review、護欄（本專案版）
 │   └─ claude-dev-workflow-guide.html   同主題的「通用版」互動教學（可複製到任何專案，雙擊開啟）
 ├─ tests\
