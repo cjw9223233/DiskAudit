@@ -1,12 +1,12 @@
 # BACKLOG（一行一條，記下來不展開；P1 擋主線／P2 發版前最好做／P3 有空再說；完成就刪行）
-- [P2] 合併或關閉 `ci/github-pages`、推送並開 PR `fix/outdir-error-hint` — 前者 PR 狀態未確認，後者尚未推送
-- [P2] GitHub Settings → Pages 的 Source 設為 GitHub Actions — 私有 repo 需付費方案，否則 pages.yml 會失敗
-- [P2] 觀察 `test.yml` 在 windows-latest 的首次結果 — junction／ACL 測試只在本機驗證過
+- [P2] 確認 Pages 網站從瀏覽器／手機打得開，且登出狀態也看得到 — 部署已成功（https://cjw9223233.github.io/DiskAudit/），但 Claude 的機器連不到 github.io
 - [P2] CLAUDE.md 瘦身到約 15 行並加入「開工先讀 handoff、想法記 BACKLOG」 — 現約 70 行，細節已在 README（指南 §5）
 - [P2] 以 `-OutDir C:\DiskAuditReports` 實掃 `D:\` — 尚未掃過，耗時與讀不到的路徑未知
 - [P2] 以系統管理員重掃 `C:\`（加 `-WinSxS`） — 先前非管理員有 139 個路徑讀不到，掃描總和高估約 6.7%
 - [P3] Docker volume `8d16b1c8…`（約 1.47 GB）是已刪 kind 節點的 /var 資料 — 孤兒，使用者決定是否刪；`vscode` volume（778 MB）是 devcontainer 的 VS Code server，也可評估
 - [P3] 把「Docker 啟動前刪三個殘留 socket」做成小腳本或寫進 README — 每次 Docker 停止後都會重現
+- [P3] 抽看一次 CI 的 `test` 日誌，確認 75 項測試真的執行 — Actions 全綠，但單次只要約 20–30 秒，比本機快很多，只看到綠燈還不夠
+- [P3] 升級 GitHub Actions 版本 — log 警告 Node 20 棄用：`checkout@v4`、`configure-pages@v5`、`deploy-pages@v4`、`upload-artifact@v4` 目前被強制用 Node 24，尚無影響
 - [P3] C: 其他大戶各自決定 — VirtualBox VMs 約 234 GB、WSL Ubuntu-22.04 約 20 GB／Ubuntu 約 3.4 GB、avast sandbox 約 53 GB、Android avd 約 9.8 GB
 - [P3] 確認合併版穩定後清理 `D:\Tools\DiskAudit-v2` 與 `D:\Tools\DiskAudit-orig-backup` — v2 內容已在 repo（另含首次 C 槽報表，要留先搬走）；backup 是整合前原內容，原始來源仍在 `D:\Downloads\SPSMMI_Log_Analysis_Project\DiskAudit`
 - [P3] 決定何時刪除 `D:\Backup\docker` 備份與 `settings-store.json.bak-20261113` — 使用者決定，Docker 已驗收可隨時刪
