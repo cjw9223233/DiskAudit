@@ -326,7 +326,13 @@ if ($WinSxS) {
         Write-Host '以 DISM 分析元件存放區（唯讀，約 1~2 分鐘）...'
         try {
             $out = & dism.exe /Online /Cleanup-Image /AnalyzeComponentStore 2>&1
-            $winsxsInfo = @($out | Where-Object { $_ -match '(?i)Size|大小|Cleanup|清理' } | ForEach-Object { [string]$_ })
+            $rawDism = @($out | ForEach-Object { [string]$_ })
+            # 保留「元件存放區」資訊區段全部的「鍵 : 值」行（備份與停用功能、快取、可回收套件數、建議清理都在內）
+            $winsxsInfo = @(Select-ComponentStoreInfo -Lines $rawDism)
+            if ($winsxsInfo.Count -eq 0) {
+                Write-Warning '無法解析 DISM 輸出（找不到「元件存放區 (WinSxS)」標頭），報表改附原文。'
+                $winsxsInfo = @($rawDism | Where-Object { $_.Trim() })
+            }
         } catch { Write-Warning "DISM 分析失敗: $($_.Exception.Message)" }
     }
 }
@@ -487,6 +493,7 @@ else { 'GroupId,SizeBytes,Size,Copies,GroupReclaimBytes,GroupReclaim,Path,KeepSu
     Volumes = @($volumes | ForEach-Object { [pscustomobject]@{ Root = $_.Root; TotalBytes = $_.Total; FreeBytes = $_.Free; UsedBytes = $_.Used } })
     ScannedDiskBytes = $scanner.TotalDisk; ScannedLogicalBytes = $scanner.TotalLogical
     PreviousReport = $(if ($prevDir) { $prevDir.FullName } else { '' }); Partial = [bool]$partial; Version = $script:DiskAuditVersion
+    ComponentStore = $(if ($winsxsInfo) { @($winsxsInfo) } else { @() })   # -WinSxS 的 DISM 分析（含備份與停用功能、可回收套件數、建議清理）
 } | ConvertTo-Json -Depth 5 | Out-File -LiteralPath (Join-Path $reportDir 'summary.json') -Encoding UTF8
 
 $snapshot = @{
